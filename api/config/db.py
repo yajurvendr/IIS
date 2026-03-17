@@ -36,7 +36,7 @@ async def get_public_pool():
             user=settings.DB_USER, password=settings.DB_PASSWORD,
             database=settings.DB_NAME,
             server_settings={"search_path": settings.DB_SCHEMA_PUBLIC},
-            min_size=2, max_size=10,
+            min_size=5, max_size=25,
         )
     return _public_pool
 
@@ -49,7 +49,7 @@ async def get_tenant_pool(schema_name: str):
             user=settings.DB_USER, password=settings.DB_PASSWORD,
             database=settings.DB_NAME,
             server_settings={"search_path": schema_name},
-            min_size=1, max_size=10,
+            min_size=2, max_size=20,
         )
     return _tenant_pools[schema_name]
 

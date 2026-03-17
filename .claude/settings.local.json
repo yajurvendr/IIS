@@ -83,7 +83,14 @@
       "Bash(python3.14 -m pip index versions aiofiles)",
       "Bash(python3.14 -m pip index versions python-dotenv)",
       "Bash(python3.14 -m pip index versions python-multipart)",
-      "Bash(python3.14 -m pip index versions openpyxl)"
+      "Bash(python3.14 -m pip index versions openpyxl)",
+      "Bash(python3 -:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''version'''',''''unknown''''\\)\\)\")",
+      "Bash(pip3 --version)",
+      "Bash('/Users/admin/Downloads/Personal/Inventory V2/api/.venv/bin/pip' list)",
+      "Bash('/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/pip' list)",
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/pip\" install python-docx --quiet)",
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" -c \":*)"
     ]
   }
 }

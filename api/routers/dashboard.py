@@ -1,8 +1,12 @@
 import asyncio
 import json
+import time
 from fastapi import APIRouter, Depends
 from config.db import fetchall, fetchone
 from middleware.auth import require_role, get_tenant_db
+
+_dashboard_cache: dict = {}  # key: (tenant_db, branch_id) → (ts, data)
+_DASHBOARD_TTL = 300          # 5 minutes
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -23,6 +27,12 @@ async def get_dashboard(
     user: dict = Depends(require_role("tenant_admin", "tenant_user")),
     db=Depends(get_tenant_db),
 ):
+    # ── Cache check ──────────────────────────────────────────────────────────
+    _ck = (user["tenantDbName"], branch_id or "")
+    _cached = _dashboard_cache.get(_ck)
+    if _cached and (time.time() - _cached[0]) < _DASHBOARD_TTL:
+        return _cached[1]
+
     # Branch filter helpers
     # forecasting_cache: NULL = consolidated; specific UUID = per-branch row
     fc_b  = "AND fc.branch_id = %s" if branch_id else "AND fc.branch_id IS NULL"
@@ -251,7 +261,7 @@ async def get_dashboard(
                 GROUP BY b.id, b.branch_name ORDER BY mtd_revenue DESC"""
         )
 
-    return {
+    result = {
         "total_skus":      total_skus_r["value"],
         "focus_skus":      focus_skus_r["value"],
         "red_skus":        rag_map.get("red", 0),
@@ -287,3 +297,5 @@ async def get_dashboard(
         "cross_branch_alerts": cross_branch_alerts,
         "branch_sales_snapshot": branch_sales_snapshot,
     }
+    _dashboard_cache[_ck] = (time.time(), result)
+    return result

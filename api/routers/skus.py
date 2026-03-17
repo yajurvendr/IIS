@@ -250,6 +250,7 @@ async def bulk_tag(
             f"SELECT id, season_tags FROM skus WHERE id IN ({placeholders})",
             body.sku_ids
         )
+        case_parts, case_params, ids = [], [], []
         for row in rows:
             existing = []
             raw = row.get("season_tags")
@@ -260,9 +261,14 @@ async def bulk_tag(
                     existing = []
             existing_names = {t.get("name") for t in existing if isinstance(t, dict)}
             merged = existing + [t for t in new_tags if t["name"] not in existing_names]
+            case_parts.append("WHEN id = %s THEN %s::jsonb")
+            case_params.extend([str(row["id"]), json.dumps(merged)])
+            ids.append(str(row["id"]))
+        if case_parts and ids:
+            id_placeholders = ",".join(["%s"] * len(ids))
             await execute(db,
-                "UPDATE skus SET season_tags = %s, updated_at = NOW() WHERE id = %s",
-                [json.dumps(merged), str(row["id"])]
+                f"UPDATE skus SET season_tags = CASE {' '.join(case_parts)} END, updated_at = NOW() WHERE id IN ({id_placeholders})",
+                case_params + ids
             )
 
     return {"message": f"{len(body.sku_ids)} SKUs updated"}

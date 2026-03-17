@@ -1,8 +1,21 @@
+import time
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 import io
 from config.db import fetchall, fetchone, get_public_pool
 from middleware.auth import require_role, get_tenant_db
+
+_report_cache: dict = {}   # key → (timestamp, data)
+_REPORT_TTL = 900           # 15 minutes
+
+def _rcache_get(key):
+    entry = _report_cache.get(key)
+    if entry and (time.time() - entry[0]) < _REPORT_TTL:
+        return entry[1]
+    return None
+
+def _rcache_set(key, value):
+    _report_cache[key] = (time.time(), value)
 from services.export_service import (
     build_po_excel, build_outstanding_excel, build_outstanding_pdf,
     build_inventory_woi_excel, build_msl_review_excel,
@@ -75,15 +88,19 @@ async def po_export(
     db=Depends(get_tenant_db),
 ):
     fc_clause, fc_bp = _fc_branch(branch_id)
-    rows = await fetchall(db,
-        f"""SELECT s.sku_code, s.sku_name, s.brand, s.category, s.unit,
-                  fc.current_stock, fc.drr_recommended, fc.woi, fc.woi_status,
-                  fc.msl_suggested, fc.target_12w_qty, fc.suggested_order_qty,
-                  s.purchase_cost_decoded
-           FROM skus s JOIN forecasting_cache fc ON fc.sku_id = s.id {fc_clause}
-           WHERE fc.suggested_order_qty > 0 ORDER BY fc.woi ASC""",
-        fc_bp
-    )
+    _ck = f"{user['tenantDbName']}:po_export:{branch_id}"
+    rows = _rcache_get(_ck)
+    if rows is None:
+        rows = await fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, s.brand, s.category, s.unit,
+                      fc.current_stock, fc.drr_recommended, fc.woi, fc.woi_status,
+                      fc.msl_suggested, fc.target_12w_qty, fc.suggested_order_qty,
+                      s.purchase_cost_decoded
+               FROM skus s JOIN forecasting_cache fc ON fc.sku_id = s.id {fc_clause}
+               WHERE fc.suggested_order_qty > 0 ORDER BY fc.woi ASC""",
+            fc_bp
+        )
+        _rcache_set(_ck, rows)
     buf = build_po_excel(rows)
     return StreamingResponse(
         io.BytesIO(buf),
@@ -140,14 +157,18 @@ async def inventory_woi_export(
     db=Depends(get_tenant_db),
 ):
     fc_clause, fc_bp = _fc_branch(branch_id)
-    rows = await fetchall(db,
-        f"""SELECT s.sku_code, s.sku_name, s.brand, s.category, s.unit,
-                  fc.current_stock, fc.drr_recommended, fc.woi, fc.woi_status,
-                  fc.msl_suggested, fc.suggested_order_qty, fc.computed_at
-           FROM skus s LEFT JOIN forecasting_cache fc ON fc.sku_id = s.id {fc_clause}
-           ORDER BY {_WOI_ORDER}, fc.woi ASC""",
-        fc_bp
-    )
+    _ck = f"{user['tenantDbName']}:woi_export:{branch_id}"
+    rows = _rcache_get(_ck)
+    if rows is None:
+        rows = await fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, s.brand, s.category, s.unit,
+                      fc.current_stock, fc.drr_recommended, fc.woi, fc.woi_status,
+                      fc.msl_suggested, fc.suggested_order_qty, fc.computed_at
+               FROM skus s LEFT JOIN forecasting_cache fc ON fc.sku_id = s.id {fc_clause}
+               ORDER BY {_WOI_ORDER}, fc.woi ASC""",
+            fc_bp
+        )
+        _rcache_set(_ck, rows)
     buf = build_inventory_woi_excel(rows)
     return StreamingResponse(
         io.BytesIO(buf),

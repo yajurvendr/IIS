@@ -9,8 +9,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from config import settings
 from services.password_service import pwd_ctx as _pwd_ctx
 
-SCHEMA_PATH   = os.path.join(os.path.dirname(__file__), "migrations", "001_public_schema.sql")
-MIGRATION_003 = os.path.join(os.path.dirname(__file__), "migrations", "003_busy_schedule.sql")
+SCHEMA_PATH        = os.path.join(os.path.dirname(__file__), "migrations", "001_public_schema.sql")
+MIGRATION_003_BUSY = os.path.join(os.path.dirname(__file__), "migrations", "003_busy_schedule.sql")
+MIGRATION_003_BCM  = os.path.join(os.path.dirname(__file__), "migrations", "003_branch_column_maps.sql")
+MIGRATION_004      = os.path.join(os.path.dirname(__file__), "migrations", "004_performance_indexes.sql")
 
 
 def migrate():
@@ -63,8 +65,8 @@ def migrate():
                 else:
                     print(f"[migrate] WARN: {e!r} in stmt: {stmt[:80]}")
 
-        # Migration 003 — busy schedule columns (ALTER TABLE IF NOT EXISTS cols)
-        with open(MIGRATION_003, "r") as f:
+        # Migration 003a — busy schedule columns on platform.tenants
+        with open(MIGRATION_003_BUSY, "r") as f:
             m3 = f.read()
         for stmt in m3.split(";"):
             lines = [ln for ln in stmt.splitlines() if ln.strip() and not ln.strip().startswith("--")]
@@ -77,7 +79,51 @@ def migrate():
                 if "already exists" in str(e).lower():
                     pass
                 else:
-                    print(f"[migrate] WARN (003): {e!r}")
+                    print(f"[migrate] WARN (003a): {e!r}")
+
+        # Migration 003b — branch_column_maps + source_label/auto_created on branches (per-tenant)
+        with open(MIGRATION_003_BCM, "r") as f:
+            m3b = f.read()
+        cur.execute("SELECT db_name FROM tenants")
+        tenant_schemas_bcm = [r[0] for r in cur.fetchall()]
+        for schema in tenant_schemas_bcm:
+            cur.execute(f"SET search_path TO {schema}, public;")
+            for stmt in m3b.split(";"):
+                lines = [ln for ln in stmt.splitlines() if ln.strip() and not ln.strip().startswith("--")]
+                stmt = "\n".join(lines).strip()
+                if not stmt:
+                    continue
+                try:
+                    cur.execute(stmt)
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        pass
+                    else:
+                        print(f"[migrate] WARN (003b/{schema}): {e!r}")
+            cur.execute(f"SET search_path TO {settings.DB_SCHEMA_PUBLIC}, public;")
+
+        # Migration 004 — performance indexes (applied per tenant schema)
+        with open(MIGRATION_004, "r") as f:
+            m4 = f.read()
+        cur.execute("SELECT db_name FROM tenants")
+        tenant_schemas = [r[0] for r in cur.fetchall()]
+        for schema in tenant_schemas:
+            cur.execute(f"SET search_path TO {schema}, public;")
+            for stmt in m4.split(";"):
+                lines = [ln for ln in stmt.splitlines() if ln.strip() and not ln.strip().startswith("--")]
+                stmt = "\n".join(lines).strip()
+                if not stmt:
+                    continue
+                try:
+                    cur.execute(stmt)
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        pass
+                    else:
+                        print(f"[migrate] WARN (004/{schema}): {e!r}")
+            cur.execute(f"SET search_path TO {settings.DB_SCHEMA_PUBLIC}, public;")
+        if tenant_schemas:
+            print(f"[migrate] Performance indexes applied to {len(tenant_schemas)} tenant schema(s).")
 
         # Seed default super admin
         pw_hash = _pwd_ctx.hash("Admin@123")

@@ -301,9 +301,15 @@ async def branch_stock_comparison(
         []
     )
 
-    # Get SKUs with per-branch stock figures via subqueries
+    # Get SKUs with per-branch stock figures — paginate SKUs first via CTE
     rows = await fetchall(db,
-        f"""SELECT sk.id AS sku_id, sk.sku_code, sk.sku_name, sk.brand, sk.category,
+        f"""WITH paged_skus AS (
+                SELECT sk.id, sk.sku_code, sk.sku_name, sk.brand, sk.category
+                FROM skus sk {where}
+                ORDER BY sk.sku_code
+                LIMIT %s OFFSET %s
+            )
+            SELECT ps.id AS sku_id, ps.sku_code, ps.sku_name, ps.brand, ps.category,
                    b.id AS branch_id, b.branch_name,
                    COALESCE(snap.quantity_on_hand, 0)
                      + COALESCE(pur.qty_since, 0)
@@ -311,48 +317,41 @@ async def branch_stock_comparison(
                      + COALESCE(tin.qty_in, 0)
                      - COALESCE(tout.qty_out, 0) AS effective_stock,
                    snap.snapshot_date AS last_snapshot_date
-            FROM skus sk
+            FROM paged_skus ps
             CROSS JOIN branches b
-            -- Latest snapshot per SKU+branch
             LEFT JOIN LATERAL (
                 SELECT quantity_on_hand, snapshot_date
                 FROM inventory_snapshots
-                WHERE sku_id = sk.id AND branch_id = b.id
+                WHERE sku_id = ps.id AND branch_id = b.id
                 ORDER BY snapshot_date DESC LIMIT 1
             ) snap ON TRUE
-            -- Purchases since snapshot
             LEFT JOIN LATERAL (
                 SELECT COALESCE(SUM(quantity), 0) AS qty_since
                 FROM purchases
-                WHERE sku_id = sk.id AND branch_id = b.id
+                WHERE sku_id = ps.id AND branch_id = b.id
                   AND (snap.snapshot_date IS NULL OR purchase_date > snap.snapshot_date)
             ) pur ON TRUE
-            -- Sales since snapshot
             LEFT JOIN LATERAL (
                 SELECT COALESCE(SUM(quantity), 0) AS qty_since
                 FROM sales
-                WHERE sku_id = sk.id AND branch_id = b.id
+                WHERE sku_id = ps.id AND branch_id = b.id
                   AND (snap.snapshot_date IS NULL OR sale_date > snap.snapshot_date)
             ) sal ON TRUE
-            -- Transfers in since snapshot
             LEFT JOIN LATERAL (
                 SELECT COALESCE(SUM(quantity), 0) AS qty_in
                 FROM stock_transfers
-                WHERE sku_id = sk.id AND to_branch_id = b.id
+                WHERE sku_id = ps.id AND to_branch_id = b.id
                   AND (snap.snapshot_date IS NULL OR transfer_date > snap.snapshot_date)
             ) tin ON TRUE
-            -- Transfers out since snapshot
             LEFT JOIN LATERAL (
                 SELECT COALESCE(SUM(quantity), 0) AS qty_out
                 FROM stock_transfers
-                WHERE sku_id = sk.id AND from_branch_id = b.id
+                WHERE sku_id = ps.id AND from_branch_id = b.id
                   AND (snap.snapshot_date IS NULL OR transfer_date > snap.snapshot_date)
             ) tout ON TRUE
-            {where}
-            AND b.is_active = TRUE
-            ORDER BY sk.sku_code, b.branch_name
-            LIMIT %s OFFSET %s""",
-        params + [limit * len(branches) if branches else limit, offset * len(branches) if branches else offset]
+            WHERE b.is_active = TRUE
+            ORDER BY ps.sku_code, b.branch_name""",
+        params + [limit, offset]
     )
 
     # Pivot: group by SKU, each branch as a column
@@ -466,18 +465,23 @@ async def branch_sales_comparison(
 
     offset = (page - 1) * limit
     rows = await fetchall(db,
-        f"""SELECT sk.id AS sku_id, sk.sku_code, sk.sku_name, sk.brand, sk.category,
+        f"""WITH paged_skus AS (
+                SELECT sk.id, sk.sku_code, sk.sku_name, sk.brand, sk.category
+                FROM skus sk {where}
+                ORDER BY sk.sku_code
+                LIMIT %s OFFSET %s
+            )
+            SELECT ps.id AS sku_id, ps.sku_code, ps.sku_name, ps.brand, ps.category,
                    b.id AS branch_id,
                    COALESCE(SUM(sl.quantity), 0)    AS qty,
                    COALESCE(SUM(sl.total_value), 0) AS revenue
-            FROM skus sk
+            FROM paged_skus ps
             CROSS JOIN branches b
-            LEFT JOIN sales sl ON sl.sku_id = sk.id AND sl.branch_id = b.id AND {date_filter}
-            {where} AND b.is_active = TRUE
-            GROUP BY sk.id, sk.sku_code, sk.sku_name, sk.brand, sk.category, b.id
-            ORDER BY sk.sku_code, b.branch_name
-            LIMIT %s OFFSET %s""",
-        params + [limit * max(len(branches), 1), offset * max(len(branches), 1)]
+            LEFT JOIN sales sl ON sl.sku_id = ps.id AND sl.branch_id = b.id AND {date_filter}
+            WHERE b.is_active = TRUE
+            GROUP BY ps.id, ps.sku_code, ps.sku_name, ps.brand, ps.category, b.id
+            ORDER BY ps.sku_code, b.branch_name""",
+        params + [limit, offset]
     )
 
     sku_map: dict = {}
@@ -522,19 +526,24 @@ async def branch_profitability_comparison(
 
     offset = (page - 1) * limit
     rows = await fetchall(db,
-        f"""SELECT sk.id AS sku_id, sk.sku_code, sk.sku_name, sk.category,
+        f"""WITH paged_skus AS (
+                SELECT sk.id, sk.sku_code, sk.sku_name, sk.category, sk.purchase_cost_decoded
+                FROM skus sk {where}
+                ORDER BY sk.sku_code
+                LIMIT %s OFFSET %s
+            )
+            SELECT ps.id AS sku_id, ps.sku_code, ps.sku_name, ps.category,
                    b.id AS branch_id,
                    COALESCE(SUM(sl.total_value), 0) AS revenue,
-                   COALESCE(SUM(sl.quantity * sk.purchase_cost_decoded), 0) AS cost
-            FROM skus sk
+                   COALESCE(SUM(sl.quantity * ps.purchase_cost_decoded), 0) AS cost
+            FROM paged_skus ps
             CROSS JOIN branches b
-            LEFT JOIN sales sl ON sl.sku_id = sk.id AND sl.branch_id = b.id
+            LEFT JOIN sales sl ON sl.sku_id = ps.id AND sl.branch_id = b.id
                                   AND sl.sale_date >= CURRENT_DATE - INTERVAL '{days} days'
-            {where} AND b.is_active = TRUE
-            GROUP BY sk.id, sk.sku_code, sk.sku_name, sk.category, b.id
-            ORDER BY sk.sku_code, b.branch_name
-            LIMIT %s OFFSET %s""",
-        params + [limit * max(len(branches), 1), offset * max(len(branches), 1)]
+            WHERE b.is_active = TRUE
+            GROUP BY ps.id, ps.sku_code, ps.sku_name, ps.category, b.id
+            ORDER BY ps.sku_code, b.branch_name""",
+        params + [limit, offset]
     )
 
     sku_map: dict = {}

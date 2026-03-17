@@ -1,102 +1,126 @@
 # IIS — Inventory Intelligence System — Quick Start
 
 ## Prerequisites
-- Node.js 20+
-- MySQL 8 running locally
-- Redis running locally (default port 6379)
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| Python | 3.11+ | Use 3.11 or 3.12 for best compatibility |
+| Node.js | 20+ | For the web and admin portals |
+| PostgreSQL | 15+ | Running locally on port 5432 |
 
 ---
 
-## 1. API Setup
+## 1. Database Setup
+
+```bash
+# Create the database (run once)
+createdb iis
+# OR using psql:
+psql -U postgres -c "CREATE DATABASE iis;"
+```
+
+---
+
+## 2. API Setup
 
 ```bash
 cd api
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate          # Mac/Linux
+# venv\Scripts\activate           # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
 cp .env.example .env
-# Edit .env — set DB_PASSWORD and any secrets
-npm install
-npm run migrate          # Creates iis_public DB and runs migrations
-                         # Seeds default super admin: admin@iis.in / Admin@123
-npm run dev              # API starts on http://localhost:4000
+# Open .env and set:
+#   DB_PASSWORD=your_postgres_password
+#   JWT_SECRET=any_32+_char_random_string
+#   REFRESH_SECRET=any_32+_char_random_string
+
+# Run migrations (creates platform schema, seeds super admin)
+python db/migrate.py
+
+# Start the API
+uvicorn main:app --host 0.0.0.0 --port 4000 --reload
 ```
 
-In a separate terminal, start the background workers:
-```bash
-cd api
-npm run worker           # BullMQ import + forecast workers
-```
+The API will be available at **http://localhost:4000**
 
 ---
 
-## 2. Tenant Portal
+## 3. Tenant Portal
 
 ```bash
 cd web
-cp .env.local.example .env.local
 npm install
-npm run dev              # http://localhost:3000
+npm run dev       # http://localhost:3000
 ```
 
 ---
 
-## 3. Super Admin Portal
+## 4. Super Admin Portal
 
 ```bash
 cd admin
-cp .env.local.example .env.local
 npm install
-npm run dev              # http://localhost:3001
+npm run dev       # http://localhost:3001
 ```
 
 ---
 
 ## Default Credentials
 
-| Role        | Email           | Password   | Portal |
-|-------------|-----------------|------------|--------|
-| Super Admin | admin@iis.in    | Admin@123  | :3001  |
+| Role        | Email        | Password  | Portal URL            |
+|-------------|--------------|-----------|-----------------------|
+| Super Admin | admin@iis.in | Admin@123 | http://localhost:3001 |
 
-To create a tenant, log in to the admin portal and go to **Tenants → New Tenant**.
+To create a tenant: log in to the admin portal → **Tenants → New Tenant**.
+The tenant admin can then log in at http://localhost:3000.
 
 ---
 
 ## Workflow
 
-1. **Super Admin** provisions a tenant (creates MySQL DB + admin user + sends onboarding email)
-2. **Tenant Admin** logs in at `:3000`, uploads sales/purchase/inventory CSV exports from Busy
-3. BullMQ worker processes the import, runs forecasting engine for all SKUs
-4. Dashboard shows 16 KPI widgets; inventory health table shows Red/Amber/Green WOI
+1. **Super Admin** provisions a tenant (auto-creates schema + admin user)
+2. **Tenant Admin** logs in at `:3000`, uploads CSV/XLSX exports from Busy
+3. Background scheduler (embedded in API process) runs nightly at 2:00 AM IST
+4. Dashboard shows KPI widgets; Inventory health table shows Red/Amber/Green WOI status
 5. PO Advisor recommends order quantities based on DRR × 12-week target
 6. Cost Decoder translates encoded purchase costs from Busy exports
 
 ---
 
-## File Structure
+## Project Structure
 
 ```
-api/
-  src/routes/         # auth, imports, skus, forecasting, reports, dashboard, settings, admin
-  src/services/       # forecastingService, importService, costDecoderService, provisionService, exportService
-  src/workers/        # importWorker, forecastWorker (BullMQ)
-  src/middleware/     # auth (JWT), tenant (DB attach), rbac (role guard)
-  db/migrations/      # 001_public_schema.sql, 002_tenant_schema.sql
+api/                            # FastAPI backend (Python)
+  config/                       # settings.py, db.py (asyncpg pools)
+  db/migrations/                # SQL migrations (001–004)
+  middleware/                   # auth (JWT), tenant DB resolver
+  routers/                      # auth, skus, imports, reports, dashboard, ...
+  services/                     # forecasting, import, cost decoder, export
+  workers/                      # scheduler.py (APScheduler), import_tasks.py
+  main.py                       # FastAPI app entry point
 
-web/src/app/(portal)/
-  dashboard/          # 16-widget dashboard
-  import/             # Upload + history
-  inventory/          # WOI health table
-  skus/               # SKU master, detail, bulk-tag
-  po-advisor/         # PO recommendations + urgent
-  seasonal/           # Pre-season alerts + calendar
-  profitability/      # 4-tab analytics
-  outstanding/        # Ageing + export
-  settings/           # General + cost-decoder + whatsapp-templates
+web/src/app/(portal)/           # Tenant portal (Next.js)
+  dashboard/                    # KPI widgets
+  import/                       # File upload + history
+  inventory/                    # WOI health table
+  skus/                         # SKU master + detail + bulk-tag
+  po-advisor/                   # Purchase order recommendations
+  seasonal/                     # Pre-season alerts
+  profitability/                # 4-tab analytics
+  outstanding/                  # Ageing ledger + export
+  settings/                     # Cost decoder, WhatsApp templates
 
-admin/src/app/(portal)/
-  dashboard/          # Platform KPIs
-  tenants/            # Full CRUD + provisioning
-  plans/              # Subscription plans
-  users/              # Cross-tenant user list + password reset
-  announcements/      # Broadcast
-  audit/              # Immutable audit log
-  health/             # DB + Redis status
+admin/src/app/(portal)/         # Super admin portal (Next.js)
+  tenants/                      # Tenant CRUD + provisioning
+  plans/                        # Subscription plan management
+  users/                        # Cross-tenant user list
+  announcements/                # Platform-wide broadcasts
+  audit/                        # Immutable audit log
 ```

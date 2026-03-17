@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 import os
 import json
@@ -46,7 +47,7 @@ async def detect_branches(
 
     try:
         from services.import_service import parse_file, detect_location_column, scan_location_values
-        rows = parse_file(tmp_path)
+        rows = await asyncio.to_thread(parse_file, tmp_path)
     finally:
         try:
             os.remove(tmp_path)
