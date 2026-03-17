@@ -1,0 +1,438 @@
+{
+	"info": {
+		"_postman_id": "cb06a8aa-1443-43e4-b76d-741a653490dd",
+		"name": "Busy API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "GetXML from Recordset",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "1",
+						"description": "Service Code",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User Name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Qry",
+						"value": "Select Vchno from tran1",
+						"description": "Any sql query",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Add Voucher from XML",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "2",
+						"description": "Add Voucher from XML",
+						"type": "default"
+					},
+					{
+						"key": "VchType",
+						"value": "9",
+						"description": "Vchtype=9 belongs to Sale Voucher",
+						"type": "default"
+					},
+					{
+						"key": "VchXml",
+						"value": "<Sale><VchSeriesName>Main</VchSeriesName><Date>01-04-2024</Date><VchType>9</VchType><StockUpdationDate>01-04-2024</StockUpdationDate><VchNo>2/2023-24</VchNo><AutoVchNo>6</AutoVchNo><STPTName>Local-ItemWise</STPTName><MasterName1>Customer-Amit Gupta</MasterName1><MasterName2>Main Store</MasterName2><TranCurName>Rs.</TranCurName><InputType>1</InputType><BillingDetails><PartyName>Customer-Amit Gupta</PartyName><Address1>New Delhi</Address1><Address2>India</Address2><MobileNo>9992229989</MobileNo></BillingDetails><VchOtherInfoDetails><OFInfo /><Transport>Santosh Transport &amp; Company</Transport><Station>Dadri</Station><PurchaseBillNo>1/2023-24</PurchaseBillNo><PurchaseBillDate>01-04-2024</PurchaseBillDate><Narration1>NA-</Narration1><GrDate>01-04-2024</GrDate></VchOtherInfoDetails><ItemEntries><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>1</SrNo><ItemName>Acer Laptop</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>26000</Price><PriceAltUnit>26000</PriceAltUnit><ListPrice>26000</ListPrice><Amt>30680</Amt><NettAmount>25386.4</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4680</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2340</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2340</TaxBeforeSurcharge><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>2</SrNo><ItemName>Lenovo</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>25000</Price><PriceAltUnit>25000</PriceAltUnit><ListPrice>25000</ListPrice><Amt>29500</Amt><NettAmount>24410</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4500</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2250</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2250</TaxBeforeSurcharge><ItemMRP>30000</ItemMRP><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail></ItemEntries><BillSundries><BSDetail><SrNo>1</SrNo><BSName>Discount</BSName><PercentVal>2</PercentVal><PercentOperatedOn>60180</PercentOperatedOn><Amt>1203.6</Amt><Date>01-04-2024</Date><VchNo>1/2023-24</VchNo><VchType>9</VchType></BSDetail></BillSundries><PendingBillDetails><BillDetail><MasterName1>Customer-Amit Gupta</MasterName1><BillRefs><Method>1</Method><SrNo>1</SrNo><RefNo>1/2023-24</RefNo><Date>01-04-2024</Date><DueDate>01-04-2024</DueDate><Value1>-58976.4</Value1><VchType>9</VchType><MfgDate>01-04-2024</MfgDate></BillRefs></BillDetail></PendingBillDetails></Sale>",
+						"description": "Xml of the voucher",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of fthe Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Modify Voucher from XML by Voucher No",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "3",
+						"description": "Service Code 3 (Modify Voucher from XML by Voucher No.)",
+						"type": "default"
+					},
+					{
+						"key": "VchType",
+						"value": "9",
+						"description": "Vchtype=9 denotes sale voucher",
+						"type": "default"
+					},
+					{
+						"key": "VchXml",
+						"value": "<Sale><VchSeriesName>Main</VchSeriesName><Date>01-04-2024</Date><VchType>9</VchType><StockUpdationDate>01-04-2024</StockUpdationDate><VchNo>1/2023-24</VchNo><AutoVchNo>1</AutoVchNo><STPTName>Local-ItemWise</STPTName><MasterName1>Customer-Amit Gupta</MasterName1><MasterName2>Main Store</MasterName2><TranCurName>Rs.</TranCurName><InputType>1</InputType><BillingDetails><PartyName>Customer-Amit Gupta</PartyName><Address1>New Delhi</Address1><Address2>India</Address2><MobileNo>9310694147</MobileNo></BillingDetails><VchOtherInfoDetails><OFInfo /><Transport>Santosh Transport &amp; Company</Transport><Station>Dadri</Station><PurchaseBillNo>1/2023-24</PurchaseBillNo><PurchaseBillDate>01-04-2024</PurchaseBillDate><Narration1>NA-</Narration1><GrDate>01-04-2024</GrDate></VchOtherInfoDetails><ItemEntries><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>1</SrNo><ItemName>Acer Laptop</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>26000</Price><PriceAltUnit>26000</PriceAltUnit><ListPrice>26000</ListPrice><Amt>30680</Amt><NettAmount>25386.4</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4680</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2340</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2340</TaxBeforeSurcharge><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>2</SrNo><ItemName>Lenovo</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>25000</Price><PriceAltUnit>25000</PriceAltUnit><ListPrice>25000</ListPrice><Amt>29500</Amt><NettAmount>24410</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4500</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2250</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2250</TaxBeforeSurcharge><ItemMRP>30000</ItemMRP><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail></ItemEntries><BillSundries><BSDetail><SrNo>1</SrNo><BSName>Discount</BSName><PercentVal>2</PercentVal><PercentOperatedOn>60180</PercentOperatedOn><Amt>1203.6</Amt><Date>01-04-2024</Date><VchNo>1/2023-24</VchNo><VchType>9</VchType></BSDetail></BillSundries><PendingBillDetails><BillDetail><MasterName1>Customer-Amit Gupta</MasterName1><BillRefs><Method>1</Method><SrNo>1</SrNo><RefNo>1/2023-24</RefNo><Date>01-04-2024</Date><DueDate>01-04-2024</DueDate><Value1>-58976.4</Value1><VchType>9</VchType><MfgDate>01-04-2024</MfgDate></BillRefs></BillDetail></PendingBillDetails></Sale>",
+						"description": "Modified xml of the voucher",
+						"type": "default"
+					},
+					{
+						"key": "ModifyKey",
+						"value": "3",
+						"description": "ModifyKey=3 denotes voucher will be modified on the basis of voucher no. and voucher Series",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981?",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981",
+					"query": [
+						{
+							"key": "",
+							"value": null
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Modify Voucher from XML by Voucher Code",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "4",
+						"description": "Service code 4 is used to modify voucher from xml by vchcode",
+						"type": "default"
+					},
+					{
+						"key": "VchType",
+						"value": "9",
+						"description": "Vchtype=9 denotes sale voucher",
+						"type": "default"
+					},
+					{
+						"key": "VchXml",
+						"value": "<Sale><VchSeriesName>Main</VchSeriesName><Date>01-04-2024</Date><VchType>9</VchType><StockUpdationDate>01-04-2024</StockUpdationDate><VchNo>1/2023-24</VchNo><AutoVchNo>6</AutoVchNo><STPTName>Local-ItemWise</STPTName><MasterName1>Customer-Amit Gupta</MasterName1><MasterName2>Main Store</MasterName2><TranCurName>Rs.</TranCurName><InputType>1</InputType><BillingDetails><PartyName>Customer-Amit Gupta</PartyName><Address1>New Delhi</Address1><Address2>India</Address2><MobileNo>9310694147</MobileNo></BillingDetails><VchOtherInfoDetails><OFInfo /><Transport>Santosh Transport &amp; Company</Transport><Station>Dadri</Station><PurchaseBillNo>1/2023-24</PurchaseBillNo><PurchaseBillDate>01-04-2024</PurchaseBillDate><Narration1>NA-</Narration1><GrDate>01-04-2024</GrDate></VchOtherInfoDetails><ItemEntries><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>1</SrNo><ItemName>Acer Laptop</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>26000</Price><PriceAltUnit>26000</PriceAltUnit><ListPrice>26000</ListPrice><Amt>30680</Amt><NettAmount>25386.4</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4680</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2340</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2340</TaxBeforeSurcharge><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail><ItemDetail><Date>01-04-2024</Date><VchType>9</VchType><VchNo>1/2023-24</VchNo><SrNo>2</SrNo><ItemName>Lenovo</ItemName><UnitName>Pcs.</UnitName><AltUnitName>Pcs.</AltUnitName><ConFactor>1</ConFactor><Qty>1</Qty><QtyMainUnit>1</QtyMainUnit><QtyAltUnit>1</QtyAltUnit><ItemTaxCategory>GST 18%</ItemTaxCategory><ItemDescInfo /><Price>25000</Price><PriceAltUnit>25000</PriceAltUnit><ListPrice>25000</ListPrice><Amt>29500</Amt><NettAmount>24410</NettAmount><CompoundDiscount>0.00</CompoundDiscount><STAmount>4500</STAmount><STPercent>9</STPercent><TaxBeforeSurcharge1>2250</TaxBeforeSurcharge1><STPercent1>9</STPercent1><TaxBeforeSurcharge>2250</TaxBeforeSurcharge><ItemMRP>30000</ItemMRP><MC>Main Store</MC><ItemSerialNoEntries /><ParamStockEntries /><BatchEntries /><DiscountStructure>Simple Discount, % of Price</DiscountStructure></ItemDetail></ItemEntries><BillSundries><BSDetail><SrNo>1</SrNo><BSName>Discount</BSName><PercentVal>2</PercentVal><PercentOperatedOn>60180</PercentOperatedOn><Amt>1203.6</Amt><Date>01-04-2024</Date><VchNo>1/2023-24</VchNo><VchType>9</VchType></BSDetail></BillSundries><PendingBillDetails><BillDetail><MasterName1>Customer-Amit Gupta</MasterName1><BillRefs><Method>1</Method><SrNo>1</SrNo><RefNo>1/2023-24</RefNo><Date>01-04-2024</Date><DueDate>01-04-2024</DueDate><Value1>-58976.4</Value1><VchType>9</VchType><MfgDate>01-04-2024</MfgDate></BillRefs></BillDetail></PendingBillDetails></Sale>",
+						"description": "Xml of the voucher",
+						"type": "default"
+					},
+					{
+						"key": "VchCode",
+						"value": "2",
+						"description": "A unique voucher is assigned when the voucher is saved in Busy.",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Add Master from XML",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "5",
+						"description": "Service code 5 is used for saving of the master",
+						"type": "default"
+					},
+					{
+						"key": "MasterType",
+						"value": "2",
+						"description": "MasterType - 2 denotes Account master",
+						"type": "default"
+					},
+					{
+						"key": "MasterXml",
+						"value": "<Account><Name>Hemant Bhatt</Name><Alias>Hemant</Alias><PrintName>Hemant Bhatt</PrintName><ParentGroup>Sundry Debtors</ParentGroup><BillByBillBalancing>True</BillByBillBalancing><Address><Address1>Model Town</Address1><Address2>Delhi</Address2><Mobile>8282828282</Mobile><WhatsAppNo>918282828282</WhatsAppNo><ITPAN>782837BN34</ITPAN><GSTNo>07782837BN34224322</GSTNo><OF/><CountryName>India</CountryName><StateName>Delhi</StateName><AreaName>---Others---</AreaName><AccNo>1002989982892</AccNo><C3>786789876789</C3><C4>SBI</C4><C5>SBI02880</C5></Address><SupplierType>1</SupplierType><PriceLevel>@</PriceLevel><PriceLevelForPurc>@</PriceLevelForPurc><TaxType>Others</TaxType><TypeOfDealerGST>Registered</TypeOfDealerGST><ChequePrintName>Hemant Bhatt</ChequePrintName><ReverseChargeType>Not Applicable</ReverseChargeType><InputType>Section 17(5)-ITC None</InputType></Account>",
+						"description": "Xml of the master",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Modify Master From XML by Code",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "6",
+						"description": "Service Code 6 is used to Modify Master From XML by Code",
+						"type": "default"
+					},
+					{
+						"key": "MasterCode",
+						"value": "40292",
+						"description": "A unique master code generated when the master is saved.",
+						"type": "default"
+					},
+					{
+						"key": "MasterXml",
+						"value": "<Account><Name>Hemant Bhatt</Name><Alias>Bhatt</Alias><PrintName>Hemant Bhatt</PrintName><ParentGroup>Sundry Debtors</ParentGroup><BillByBillBalancing>True</BillByBillBalancing><Address><Address1>Model Town</Address1><Address2>Delhi</Address2><Mobile>8282828282</Mobile><WhatsAppNo>918282828282</WhatsAppNo><ITPAN>782837BN34</ITPAN><GSTNo>07782837BN34224322</GSTNo><OF/><CountryName>India</CountryName><StateName>Delhi</StateName><AreaName>---Others---</AreaName><AccNo>1002989982892</AccNo><C3>786789876789</C3><C4>SBI</C4><C5>SBI02880</C5></Address><SupplierType>1</SupplierType><PriceLevel>@</PriceLevel><PriceLevelForPurc>@</PriceLevelForPurc><TaxType>Others</TaxType><TypeOfDealerGST>Registered</TypeOfDealerGST><ChequePrintName>Hemant Bhatt</ChequePrintName><ReverseChargeType>Not Applicable</ReverseChargeType><InputType>Section 17(5)-ITC None</InputType></Account>",
+						"description": "Xml of the master",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "Username of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Modify Master From XML by Name",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "7",
+						"description": "Service Code 7 used for Modify Master From XML by Name",
+						"type": "default"
+					},
+					{
+						"key": "MasterName",
+						"value": "Hemant Bhatt",
+						"description": "Any master name",
+						"type": "default"
+					},
+					{
+						"key": "MasterType",
+						"value": "2",
+						"description": "MasterType 2 denotes account master",
+						"type": "default"
+					},
+					{
+						"key": "MasterXml",
+						"value": "<Account><Name>Hemant Bhatt</Name><Alias>Hemant</Alias><PrintName>Hemant Bhatt</PrintName><ParentGroup>Sundry Debtors</ParentGroup><BillByBillBalancing>True</BillByBillBalancing><Address><Address1>Model Town</Address1><Address2>Delhi</Address2><Mobile>8282828282</Mobile><WhatsAppNo>918282828282</WhatsAppNo><ITPAN>782837BN34</ITPAN><GSTNo>07782837BN34224322</GSTNo><OF/><CountryName>India</CountryName><StateName>Delhi</StateName><AreaName>---Others---</AreaName><AccNo>1002989982892</AccNo><C3>786789876789</C3><C4>SBI</C4><C5>SBI02880</C5></Address><SupplierType>1</SupplierType><PriceLevel>@</PriceLevel><PriceLevelForPurc>@</PriceLevelForPurc><TaxType>Others</TaxType><TypeOfDealerGST>Registered</TypeOfDealerGST><ChequePrintName>Hemant Bhatt</ChequePrintName><ReverseChargeType>Not Applicable</ReverseChargeType><InputType>Section 17(5)-ITC None</InputType></Account>",
+						"description": "Modified xml of the master",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetVchXML",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "8",
+						"description": "Service Code 8 used to get XML of the Voucher",
+						"type": "default"
+					},
+					{
+						"key": "VchCode",
+						"value": "40000",
+						"description": "Voucher code",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetMasterXML",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "SC",
+						"value": "9",
+						"description": "Service Code 9 used to get the xml of the master",
+						"type": "default"
+					},
+					{
+						"key": "MasterCode",
+						"value": "40292",
+						"description": "Any Master Code",
+						"type": "default"
+					},
+					{
+						"key": "UserName",
+						"value": "a",
+						"description": "User name of the Busy's company",
+						"type": "default"
+					},
+					{
+						"key": "Pwd",
+						"value": "a",
+						"description": "Password of the Busy's company",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:981",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "981"
+				}
+			},
+			"response": []
+		}
+	]
+}
