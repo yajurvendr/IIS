@@ -88,6 +88,22 @@ source venv/bin/activate
 
 Your terminal prompt should now show `(venv)` at the start.
 
+---
+
+> ### ⚠️ IMPORTANT — Virtual Environment Activation Required Every Time
+>
+> **You must run `source venv/bin/activate` every time you open a new terminal window before starting the API.**
+>
+> - If you see `(venv)` at the start of your prompt → you are activated. Good.
+> - If you do NOT see `(venv)` → the API will fail to start. Run the activate command first.
+>
+> **The command to activate (run this every time):**
+> ```bash
+> source venv/bin/activate
+> ```
+
+---
+
 ### Install Python packages
 
 ```bash
@@ -136,7 +152,7 @@ Leave this terminal running. Open a browser and go to:
 
 ---
 
-## Step 4 — Tenant Portal
+## Step 4 — Web Portal
 
 Open a **new Terminal tab** (`Cmd + T`):
 
@@ -150,26 +166,15 @@ Open: **http://localhost:3000**
 
 ---
 
-## Step 5 — Admin Portal
+## Step 5 — First Login
 
-Open another **new Terminal tab** (`Cmd + T`):
-
-```bash
-cd ~/Downloads/Personal/"Inventory V2"/admin
-npm install
-npm run dev
-```
-
-Open: **http://localhost:3001**
-
----
-
-## Step 6 — First Login
-
-1. Go to **http://localhost:3001** (Admin Portal)
+1. Go to **http://localhost:3000/login**
 2. Log in with: `admin@iis.in` / `Admin@123`
-3. Go to **Tenants → New Tenant** to create your first tenant
-4. The tenant admin can log in at **http://localhost:3000**
+3. You will be redirected to the super admin dashboard at `/admin/dashboard`
+4. Go to **Tenants → New Tenant** to create your first tenant
+5. The tenant admin can also log in at **http://localhost:3000/login** and will be redirected to the tenant portal
+
+> There is only one login page and one web application — both super admins and tenant users log in at the same URL.
 
 ---
 
@@ -195,12 +200,11 @@ cd ~/Downloads/Personal/"Inventory V2"/api
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 4000 --reload
 
-# Start Tenant Portal (Terminal 2)
+# Start Web Portal (Terminal 2)
 cd ~/Downloads/Personal/"Inventory V2"/web && npm run dev
-
-# Start Admin Portal (Terminal 3)
-cd ~/Downloads/Personal/"Inventory V2"/admin && npm run dev
 ```
+
+Open: **http://localhost:3000**
 
 ---
 
@@ -230,10 +234,16 @@ source venv/bin/activate
 python db/migrate.py
 ```
 
+### "ModuleNotFoundError" or "command not found: uvicorn"
+You forgot to activate the virtual environment. Run:
+```bash
+source venv/bin/activate
+```
+Then try again.
+
 ### Port already in use
 Find and kill the process:
 ```bash
 lsof -ti:4000 | xargs kill -9   # For port 4000
 lsof -ti:3000 | xargs kill -9   # For port 3000
-lsof -ti:3001 | xargs kill -9   # For port 3001
 ```

@@ -25,8 +25,13 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 MAIL_FROM = os.getenv("MAIL_FROM", "noreply@iis.local")
 
-WEB_ORIGIN   = os.getenv("WEB_ORIGIN", "http://localhost:3000")
-ADMIN_ORIGIN = os.getenv("ADMIN_ORIGIN", "http://localhost:3001")
+# Single portal — both tenant and admin run on the same origin
+WEB_ORIGIN   = os.getenv("WEB_ORIGIN",   "http://localhost:3000")
+ADMIN_ORIGIN = os.getenv("ADMIN_ORIGIN", "http://localhost:3000")
+
+# Optional extra origins, comma-separated (e.g. LAN IP for mobile testing)
+_extra = os.getenv("EXTRA_ORIGINS", "")
+EXTRA_ORIGINS = [o.strip() for o in _extra.split(",") if o.strip()]
 
 # WhatsApp Business API gateway (WATI, Twilio, or custom)
 WHATSAPP_API_URL   = os.getenv("WHATSAPP_API_URL", "")    # e.g. https://live-mt-server.wati.io/api/v1/sendSessionMessage

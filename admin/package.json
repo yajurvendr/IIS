@@ -1,21 +1,11 @@
 {
-  "name": "iis-admin",
-  "version": "1.0.0",
+  "name": "iis-admin-DEPRECATED",
+  "version": "0.0.0",
   "private": true,
+  "_note": "This folder is no longer used. The admin portal has been merged into web/ and runs on port 3000 at /admin/* routes. Do not start this app.",
   "scripts": {
-    "dev": "next dev -p 3001",
-    "build": "next build",
-    "start": "next start -p 3001"
-  },
-  "dependencies": {
-    "axios": "^1.7.2",
-    "js-cookie": "^3.0.5",
-    "next": "^16.1.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "eslint": "^9.39.3",
-    "eslint-config-next": "^16.1.6"
+    "dev": "echo 'Admin portal merged into web/. Run: cd ../web && npm run dev' && exit 1",
+    "build": "echo 'Admin portal merged into web/. See web/ folder.' && exit 1",
+    "start": "echo 'Admin portal merged into web/.' && exit 1"
   }
 }

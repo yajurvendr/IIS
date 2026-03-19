@@ -2,25 +2,19 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, getRole } from '@/lib/auth';
-import Sidebar from '@/components/layout/Sidebar';
-import AnnouncementBanner from '@/components/ui/AnnouncementBanner';
+import AdminSidebar from '@/components/admin/Sidebar';
 
-export default function PortalLayout({ children }) {
+export default function AdminLayout({ children }) {
   const router = useRouter();
-
   useEffect(() => {
     if (!isAuthenticated()) { router.replace('/login'); return; }
-    if (getRole() === 'super_admin') { router.replace('/admin/dashboard'); return; }
+    if (getRole() !== 'super_admin') { router.replace('/dashboard'); }
   }, []);
-
   return (
     <div className="app-layout">
-      <Sidebar />
+      <AdminSidebar />
       <main className="main-content">
-        <div className="page-body">
-          <AnnouncementBanner />
-          {children}
-        </div>
+        <div className="page-body">{children}</div>
       </main>
     </div>
   );

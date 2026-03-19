@@ -78,6 +78,22 @@ venv\Scripts\activate
 
 Your prompt should now show `(venv)` at the start.
 
+---
+
+> ### ⚠️ IMPORTANT — Virtual Environment Activation Required Every Time
+>
+> **You must run `venv\Scripts\activate` every time you open a new Command Prompt window before starting the API.**
+>
+> - If you see `(venv)` at the start of your prompt → you are activated. Good.
+> - If you do NOT see `(venv)` → the API will fail to start. Run the activate command first.
+>
+> **The command to activate (run this every time in the api folder):**
+> ```cmd
+> venv\Scripts\activate
+> ```
+
+---
+
 ### Install Python packages
 
 ```cmd
@@ -131,7 +147,7 @@ Leave this window running. Open a browser and go to:
 
 ---
 
-## Step 4 — Tenant Portal
+## Step 4 — Web Portal
 
 Open a **new Command Prompt window**:
 
@@ -145,26 +161,15 @@ Open: **http://localhost:3000**
 
 ---
 
-## Step 5 — Admin Portal
+## Step 5 — First Login
 
-Open another **new Command Prompt window**:
-
-```cmd
-cd "C:\Users\YourName\Downloads\Inventory V2\admin"
-npm install
-npm run dev
-```
-
-Open: **http://localhost:3001**
-
----
-
-## Step 6 — First Login
-
-1. Go to **http://localhost:3001** (Admin Portal)
+1. Go to **http://localhost:3000/login**
 2. Log in with: `admin@iis.in` / `Admin@123`
-3. Go to **Tenants → New Tenant** to create your first tenant
-4. The tenant admin can log in at **http://localhost:3000**
+3. You will be redirected to the super admin dashboard at `/admin/dashboard`
+4. Go to **Tenants → New Tenant** to create your first tenant
+5. The tenant admin can also log in at **http://localhost:3000/login** and will be redirected to the tenant portal
+
+> There is only one login page and one web application — both super admins and tenant users log in at the same URL.
 
 ---
 
@@ -176,7 +181,7 @@ In each Command Prompt window, press `Ctrl + C` to stop the server.
 
 ## Restarting After Reboot
 
-Open **3 separate Command Prompt windows**:
+Open **2 separate Command Prompt windows**:
 
 **Window 1 — API:**
 ```cmd
@@ -185,19 +190,15 @@ venv\Scripts\activate
 uvicorn main:app --host 0.0.0.0 --port 4000 --reload
 ```
 
-**Window 2 — Tenant Portal:**
+**Window 2 — Web Portal:**
 ```cmd
 cd "C:\Users\YourName\Downloads\Inventory V2\web"
 npm run dev
 ```
 
-**Window 3 — Admin Portal:**
-```cmd
-cd "C:\Users\YourName\Downloads\Inventory V2\admin"
-npm run dev
-```
-
 > PostgreSQL starts automatically with Windows by default. If it doesn't, open **Services** (Win + R → `services.msc`) and start **postgresql-x64-15**.
+
+Open: **http://localhost:3000**
 
 ---
 
@@ -217,6 +218,13 @@ Open **Services** (Win + R → `services.msc`) and check that **postgresql-x64-1
 
 ### "password authentication failed"
 Make sure `DB_PASSWORD` in `.env` matches the password you set during PostgreSQL installation.
+
+### "ModuleNotFoundError" or "uvicorn is not recognized"
+You forgot to activate the virtual environment. Run:
+```cmd
+venv\Scripts\activate
+```
+Then try again.
 
 ### API starts but shows errors about missing tables
 Run migrations again:

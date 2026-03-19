@@ -90,7 +90,28 @@
       "Bash('/Users/admin/Downloads/Personal/Inventory V2/api/.venv/bin/pip' list)",
       "Bash('/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/pip' list)",
       "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/pip\" install python-docx --quiet)",
-      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" -c \":*)"
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" -c \":*)",
+      "Bash(chmod +x \"/Users/admin/Downloads/Personal/Inventory demo/IIS/start_api.sh\" \"/Users/admin/Downloads/Personal/Inventory demo/IIS/start_web.sh\" \"/Users/admin/Downloads/Personal/Inventory demo/IIS/start_admin.sh\")",
+      "Bash(cat '/Users/admin/Downloads/Personal/Inventory demo/IIS/web/src/app/\\(portal\\)/layout.js')",
+      "Bash(cat '/Users/admin/Downloads/Personal/Inventory demo/IIS/admin/src/app/\\(portal\\)/layout.js')",
+      "Bash(find \"/Users/admin/Downloads/Personal/Inventory demo/IIS/web/src/app/\\(admin\\)\" -type f)",
+      "Bash(find \"/Users/admin/Downloads/Personal/Inventory V2/web/src/app/\\(admin\\)\" -type f)",
+      "Bash(find '/Users/admin/Downloads/Personal/Inventory V2/web/src/app/admin' -type f -name *.js)",
+      "Bash(find '/Users/admin/Downloads/Personal/Inventory V2/web/src/app/\\\\\\(admin\\\\\\)' -type f -name *.js)",
+      "Bash(cp -r \"\\(admin\\)/.\" \"admin/\")",
+      "Bash(rm -rf \"\\(admin\\)\")",
+      "Bash(rm -rf \"admin/\\(portal\\)\" \"admin/login\")",
+      "Bash(grep -h ^import /Users/admin/Downloads/Personal/Inventory V2/web/src/app/admin/*/page.js '/Users/admin/Downloads/Personal/Inventory V2/web/src/app/admin/layout.js')",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(find '/Users/admin/Downloads/Personal/Inventory V2/web/src/app/\\\\\\(portal\\\\\\)' -type f -name *.js)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(find '/Users/admin/Downloads/Personal/Inventory V2' -maxdepth 3 \\\\\\(-name *.md -o -name *.docx \\\\\\) ! -path */.venv/* ! -path */venv/* ! -path */node_modules/*)",
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" -c \"import docx; print\\(''python-docx ok''\\)\")",
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" generate_docx.py)"
+    ],
+    "additionalDirectories": [
+      "/Users/admin/Downloads/Personal/Inventory demo/IIS"
     ]
   }
 }

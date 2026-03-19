@@ -16,8 +16,6 @@ SA = Depends(require_super_admin)
 @router.get("/dashboard")
 async def admin_dashboard(user: dict = SA):
     import asyncio
-    import redis as redis_lib
-    from config import settings as cfg
     pub = await get_public_pool()
     (
         totals_r, status_r, tenants_r, plan_r,
@@ -69,12 +67,8 @@ async def admin_dashboard(user: dict = SA):
     except Exception:
         db_ok = False
 
-    redis_ok = True
-    try:
-        r = redis_lib.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT, socket_connect_timeout=1)
-        r.ping()
-    except Exception:
-        redis_ok = False
+    from workers.scheduler import _scheduler
+    scheduler_ok = _scheduler.running
 
     return {
         **totals_r,
@@ -89,8 +83,8 @@ async def admin_dashboard(user: dict = SA):
         "activity_feed":     activity_r,
         "active_announcement": announcement_r,
         "platform_health": {
-            "db_ok":    db_ok,
-            "redis_ok": redis_ok,
+            "db_ok":        db_ok,
+            "scheduler_ok": scheduler_ok,
         },
     }
 
@@ -516,8 +510,7 @@ async def tenant_usage(tenant_id: str, user: dict = SA):
 # ── Health ────────────────────────────────────────────────────────────────────
 @router.get("/health")
 async def platform_health(user: dict = SA):
-    import redis as redis_lib
-    from config import settings as cfg
+    from workers.scheduler import _scheduler
 
     pub = await get_public_pool()
     db_status, db_error = "ok", None
@@ -526,18 +519,13 @@ async def platform_health(user: dict = SA):
     except Exception as e:
         db_status, db_error = "error", str(e)
 
-    redis_status, redis_error = "ok", None
-    try:
-        r = redis_lib.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT)
-        r.ping()
-    except Exception as e:
-        redis_status, redis_error = "error", str(e)
+    scheduler_status = "ok" if _scheduler.running else "stopped"
 
     tenant_r = await fetchone(pub, "SELECT COUNT(*) AS cnt FROM tenants WHERE status != 'churned'")
 
     return {
-        "status": "healthy" if db_status == "ok" and redis_status == "ok" else "degraded",
-        "db":    {"status": db_status, "error": db_error},
-        "redis": {"status": redis_status, "error": redis_error},
+        "status": "healthy" if db_status == "ok" and scheduler_status == "ok" else "degraded",
+        "db":        {"status": db_status, "error": db_error},
+        "scheduler": {"status": scheduler_status},
         "active_tenants": tenant_r["cnt"],
     }

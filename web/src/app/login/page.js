@@ -16,7 +16,7 @@ export default function LoginPage() {
     try {
       const data = await login(form.email, form.password);
       if (data.role === 'super_admin') {
-        window.location.href = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3001';
+        router.push('/admin/dashboard');
       } else {
         router.push('/dashboard');
       }

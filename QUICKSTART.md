@@ -2,21 +2,16 @@
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Python | 3.11+ | Use 3.11 or 3.12 for best compatibility |
-| Node.js | 20+ | For the web and admin portals |
-| PostgreSQL | 15+ | Running locally on port 5432 |
+- Python 3.14 (venv already created at `api/venv/`)
+- Node.js 20+
+- PostgreSQL 15 running locally
 
 ---
 
-## 1. Database Setup
+## 1. Start PostgreSQL
 
 ```bash
-# Create the database (run once)
-createdb iis
-# OR using psql:
-psql -U postgres -c "CREATE DATABASE iis;"
+brew services start postgresql@15
 ```
 
 ---
@@ -24,103 +19,101 @@ psql -U postgres -c "CREATE DATABASE iis;"
 ## 2. API Setup
 
 ```bash
-cd api
+cd "/Users/admin/Downloads/Personal/Inventory V2/api"
+source venv/bin/activate
+```
 
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate          # Mac/Linux
-# venv\Scripts\activate           # Windows
+> **IMPORTANT:** You must run `source venv/bin/activate` every time you open a new terminal.
+> Your prompt should show `(venv)` at the start. If it does not, the API will fail to start.
 
-# Install dependencies
-pip install -r requirements.txt
+First run only — create the database and run migrations:
 
-# Configure environment
-cp .env.example .env
-# Open .env and set:
-#   DB_PASSWORD=your_postgres_password
-#   JWT_SECRET=any_32+_char_random_string
-#   REFRESH_SECRET=any_32+_char_random_string
+```bash
+# Create the database (first time only)
+createdb iis
 
-# Run migrations (creates platform schema, seeds super admin)
+# Run migrations — creates schemas and seeds default super admin
 python db/migrate.py
+```
 
-# Start the API
+You should see:
+```
+[migrate] Schema 'platform' ready in database 'iis'.
+[migrate] Default super admin: admin@iis.in / Admin@123
+```
+
+Start the API:
+
+```bash
 uvicorn main:app --host 0.0.0.0 --port 4000 --reload
 ```
 
-The API will be available at **http://localhost:4000**
+The API runs on **http://localhost:4000**. Visit **http://localhost:4000/docs** for interactive API documentation.
 
 ---
 
-## 3. Tenant Portal
+## 3. Frontend
+
+Open a **new terminal tab**:
 
 ```bash
-cd web
-npm install
-npm run dev       # http://localhost:3000
+cd "/Users/admin/Downloads/Personal/Inventory V2/web"
+npm run dev
 ```
 
----
-
-## 4. Super Admin Portal
-
-```bash
-cd admin
-npm install
-npm run dev       # http://localhost:3001
-```
+Open: **http://localhost:3000**
 
 ---
 
 ## Default Credentials
 
-| Role        | Email        | Password  | Portal URL            |
-|-------------|--------------|-----------|-----------------------|
-| Super Admin | admin@iis.in | Admin@123 | http://localhost:3001 |
+| Role | Email | Password | Login URL |
+|---|---|---|---|
+| Super Admin | admin@iis.in | Admin@123 | http://localhost:3000/login |
 
-To create a tenant: log in to the admin portal → **Tenants → New Tenant**.
-The tenant admin can then log in at http://localhost:3000.
+Log in at **http://localhost:3000/login** — all user types use the same login page.
+- Super admin is redirected to `/admin/dashboard`
+- Tenant users are redirected to `/dashboard`
+
+To create a tenant: log in as super admin → **Tenants → New Tenant**.
+
+---
+
+## Restarting After Reboot
+
+```bash
+# Terminal 1 — PostgreSQL
+brew services start postgresql@15
+
+# Terminal 2 — API
+cd "/Users/admin/Downloads/Personal/Inventory V2/api"
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 4000 --reload
+
+# Terminal 3 — Frontend
+cd "/Users/admin/Downloads/Personal/Inventory V2/web"
+npm run dev
+```
+
+---
+
+## File Structure (Summary)
+
+```
+api/            Python FastAPI REST API  (port 4000)
+  venv/         Python virtual environment — MUST activate before running
+web/            Next.js 14 web portal    (port 3000)
+                Serves both tenant portal and super admin panel
+```
 
 ---
 
 ## Workflow
 
-1. **Super Admin** provisions a tenant (auto-creates schema + admin user)
-2. **Tenant Admin** logs in at `:3000`, uploads CSV/XLSX exports from Busy
-3. Background scheduler (embedded in API process) runs nightly at 2:00 AM IST
-4. Dashboard shows KPI widgets; Inventory health table shows Red/Amber/Green WOI status
-5. PO Advisor recommends order quantities based on DRR × 12-week target
-6. Cost Decoder translates encoded purchase costs from Busy exports
-
----
-
-## Project Structure
-
-```
-api/                            # FastAPI backend (Python)
-  config/                       # settings.py, db.py (asyncpg pools)
-  db/migrations/                # SQL migrations (001–004)
-  middleware/                   # auth (JWT), tenant DB resolver
-  routers/                      # auth, skus, imports, reports, dashboard, ...
-  services/                     # forecasting, import, cost decoder, export
-  workers/                      # scheduler.py (APScheduler), import_tasks.py
-  main.py                       # FastAPI app entry point
-
-web/src/app/(portal)/           # Tenant portal (Next.js)
-  dashboard/                    # KPI widgets
-  import/                       # File upload + history
-  inventory/                    # WOI health table
-  skus/                         # SKU master + detail + bulk-tag
-  po-advisor/                   # Purchase order recommendations
-  seasonal/                     # Pre-season alerts
-  profitability/                # 4-tab analytics
-  outstanding/                  # Ageing ledger + export
-  settings/                     # Cost decoder, WhatsApp templates
-
-admin/src/app/(portal)/         # Super admin portal (Next.js)
-  tenants/                      # Tenant CRUD + provisioning
-  plans/                        # Subscription plan management
-  users/                        # Cross-tenant user list
-  announcements/                # Platform-wide broadcasts
-  audit/                        # Immutable audit log
-```
+1. Super Admin provisions a tenant (creates PostgreSQL schema + admin user)
+2. Tenant Admin logs in, uploads sales/purchase/inventory CSV exports from Busy ERP
+3. Import service validates and inserts rows into the tenant schema
+4. APScheduler runs the forecasting engine nightly at 2 AM IST for all SKUs
+5. Dashboard shows 19 KPI widgets; inventory table shows Red/Amber/Green WOI status
+6. PO Advisor recommends order quantities based on blended DRR × target weeks
+7. Cost Decoder translates encoded purchase costs from Busy exports
