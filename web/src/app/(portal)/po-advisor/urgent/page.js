@@ -45,10 +45,10 @@ export default function UrgentPoPage() {
           loading={loading}
           columns={[
             { key: 'sku_code', label: 'SKU Code', width: 120 },
-            { key: 'description', label: 'Description' },
+            { key: 'sku_name', label: 'Description' },
             { key: 'brand', label: 'Brand', width: 100 },
             { key: 'current_stock', label: 'Stock', width: 80 },
-            { key: 'drr_rec', label: 'DRR/day', width: 90, render: v => parseFloat(v || 0).toFixed(2) },
+            { key: 'drr_recommended', label: 'DRR/day', width: 90, render: v => parseFloat(v || 0).toFixed(2) },
             {
               key: 'woi', label: 'WOI', width: 90,
               render: (v, row) => <span className={woiBadgeClass(row.woi_status)} style={{ fontSize: 13 }}>{parseFloat(v || 0).toFixed(1)}w</span>

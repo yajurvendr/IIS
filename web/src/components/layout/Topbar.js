@@ -4,10 +4,12 @@ import { getUser } from '@/lib/auth';
 import { useState, useRef, useEffect } from 'react';
 
 export default function Topbar({ title, subtitle, actions, backHref, backLabel = 'Settings' }) {
-  const user = getUser();
+  const [user, setUser] = useState(null);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef(null);
+
+  useEffect(() => { setUser(getUser()); }, []);
 
   // Close notif panel on outside click
   useEffect(() => {

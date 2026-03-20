@@ -104,7 +104,7 @@ export default function InventoryPage() {
                 </span>
               )
             },
-            { key: 'msl_suggested', label: 'MSL', width: 80 },
+            { key: 'msl_suggested', label: 'Suggested MSL', width: 110 },
             { key: 'forecast_at', label: 'Updated', width: 110, render: v => formatDate(v) },
           ]}
           data={data}

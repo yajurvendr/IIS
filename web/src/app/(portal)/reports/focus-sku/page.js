@@ -80,7 +80,7 @@ export default function FocusSkuPage() {
             { key: 'brand', label: 'Brand', width: 90 },
             { key: 'category', label: 'Category', width: 110 },
             {
-              key: 'msl_busy', label: 'Busy MSL', width: 95,
+              key: 'msl_busy', label: 'Current MSL', width: 95,
               render: v => v != null ? parseFloat(v).toFixed(0) : <span style={{ color: 'var(--color-text-muted)' }}>—</span>
             },
             {
@@ -103,7 +103,7 @@ export default function FocusSkuPage() {
               render: v => v ? <span className={woiBadgeClass(v)}>{v.toUpperCase()}</span> : '—'
             },
             {
-              key: 'msl_suggested', label: 'System MSL', width: 105,
+              key: 'msl_suggested', label: 'Suggested MSL', width: 105,
               render: v => v != null ? (
                 <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{parseFloat(v).toFixed(0)}</span>
               ) : '—'

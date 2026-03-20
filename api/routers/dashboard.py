@@ -63,7 +63,7 @@ async def get_dashboard(
             s_bp
         ),
         fetchall(db,
-            f"SELECT woi_status, COUNT(*) AS cnt FROM forecasting_cache WHERE 1=1 {fc_b} GROUP BY woi_status",
+            f"SELECT woi_status, COUNT(*) AS cnt FROM forecasting_cache fc WHERE 1=1 {fc_b} GROUP BY woi_status",
             fc_bp
         ),
         # WOI summary table (red + amber SKUs with DRR)
@@ -136,7 +136,7 @@ async def get_dashboard(
             sl_bp
         ),
         # Count urgent (red WOI) SKUs
-        fetchone(db, f"SELECT COUNT(*) AS cnt FROM forecasting_cache WHERE woi_status='red' {fc_b}", fc_bp),
+        fetchone(db, f"SELECT COUNT(*) AS cnt FROM forecasting_cache fc WHERE woi_status='red' AND suggested_order_qty > 0 {fc_b}", fc_bp),
         # Pre-season alert SKUs
         fetchall(db,
             f"""SELECT s.sku_code, s.sku_name, s.season_tags,

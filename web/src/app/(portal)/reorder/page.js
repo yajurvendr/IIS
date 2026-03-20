@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Topbar from '@/components/layout/Topbar';
 import api from '@/lib/api';
 import { formatDate, woiBadgeClass } from '@/lib/formatters';
@@ -281,6 +281,10 @@ export default function ReorderPage() {
   const [bucket2, setBucket2] = useState([]);
   const [summary, setSummary] = useState({ bucket1_count: 0, bucket2_count: 0, lead_time_days: 15 });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const uploadRef = useRef(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -299,6 +303,42 @@ export default function ReorderPage() {
     bucketSetter(prev => prev.map(r => r.sku_id === skuId ? { ...r, msl: newMsl } : r));
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await api.get('/reorder/export', {
+        params: { branch_id: activeBranch?.id || '' },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'smart_reorder.xlsx'; a.click();
+    } finally { setExporting(false); }
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post(
+        `/reorder/bulk-upload?branch_id=${activeBranch?.id || ''}`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      setUploadResult(res.data);
+      load();
+    } catch (err) {
+      setUploadResult({ message: err.response?.data?.detail || 'Upload failed', errors: [] });
+    } finally {
+      setUploading(false);
+      if (uploadRef.current) uploadRef.current.value = '';
+    }
+  }
+
   const totalItems = summary.bucket1_count + summary.bucket2_count;
 
   return (
@@ -307,14 +347,41 @@ export default function ReorderPage() {
         title="Smart Reorder"
       />
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16, gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: 13, color: 'var(--color-text-muted)', alignSelf: 'center' }}>
           Lead time: <strong>{summary.lead_time_days}d</strong>
         </span>
+        <button className="btn btn-secondary" onClick={handleExport} disabled={exporting || loading} style={{ fontSize: 13 }}>
+          {exporting ? 'Downloading…' : 'Download Excel'}
+        </button>
+        <label className="btn btn-secondary" style={{ fontSize: 13, cursor: uploading ? 'wait' : 'pointer' }}>
+          {uploading ? 'Uploading…' : 'Upload Excel'}
+          <input ref={uploadRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
+            onChange={handleUpload} disabled={uploading} />
+        </label>
         <button className="btn btn-ghost" onClick={load} disabled={loading} style={{ fontSize: 13 }}>
           {loading ? 'Loading…' : '↻ Refresh'}
         </button>
       </div>
+
+      {/* Upload result banner */}
+      {uploadResult && (
+        <div style={{
+          marginBottom: 16, padding: '10px 16px', borderRadius: 8,
+          background: uploadResult.errors?.length ? '#FFF5F5' : '#F0FFF4',
+          border: `1px solid ${uploadResult.errors?.length ? '#FC8181' : '#68D391'}`,
+          fontSize: 13,
+        }}>
+          <strong>{uploadResult.message}</strong>
+          {uploadResult.errors?.length > 0 && (
+            <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+              {uploadResult.errors.map((e, i) => <li key={i} style={{ color: '#C53030' }}>{e}</li>)}
+            </ul>
+          )}
+          <button className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 12 }}
+            onClick={() => setUploadResult(null)}>✕</button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-muted)', fontSize: 14 }}>

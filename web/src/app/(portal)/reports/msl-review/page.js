@@ -67,7 +67,7 @@ export default function MslReviewPage() {
       </div>
 
       <div style={{ marginBottom: 12, padding: '10px 14px', background: '#FFFBEB', border: '1px solid #F6E05E', borderRadius: 8, fontSize: 13, color: '#744210' }}>
-        Compares <strong>Busy Accounting MSL</strong> (imported via MSL file) with <strong>System MSL</strong> (computed from DRR × lead time).
+        Compares <strong>Current MSL</strong> (imported via MSL file) with <strong>Suggested MSL</strong> (computed from DRR × lead time).
         Variance &gt; 20% triggers a recommendation to adjust.
       </div>
 
@@ -80,11 +80,11 @@ export default function MslReviewPage() {
             { key: 'brand', label: 'Brand', width: 100 },
             { key: 'category', label: 'Category', width: 120 },
             {
-              key: 'busy_msl', label: 'Busy MSL', width: 100,
+              key: 'busy_msl', label: 'Current MSL', width: 100,
               render: v => v != null ? <strong>{parseFloat(v).toFixed(0)}</strong> : <span style={{ color: 'var(--color-text-muted)' }}>—</span>
             },
             {
-              key: 'system_msl', label: 'System MSL', width: 110,
+              key: 'system_msl', label: 'Suggested MSL', width: 110,
               render: v => v != null ? <strong style={{ color: 'var(--color-primary-light)' }}>{parseFloat(v).toFixed(0)}</strong> : '—'
             },
             {

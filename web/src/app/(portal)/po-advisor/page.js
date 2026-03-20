@@ -80,7 +80,7 @@ export default function PoAdvisorPage() {
               key: 'woi', label: 'WOI', width: 90,
               render: (v, row) => <span className={woiBadgeClass(row.woi_status)}>{parseFloat(v || 0).toFixed(1)}w</span>
             },
-            { key: 'msl_suggested', label: 'MSL', width: 80 },
+            { key: 'msl_suggested', label: 'Suggested MSL', width: 110 },
             { key: 'target_12w_qty', label: '12W Target', width: 100 },
             { key: 'suggested_order_qty', label: 'Order Qty', width: 100, render: v => <strong>{v || 0}</strong> },
             {

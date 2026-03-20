@@ -11,11 +11,15 @@ Suggested reorder qty formula (confirmed):
   suggested_order   = MAX(0, target_stock − effective_stock)
 """
 from __future__ import annotations
+import io
 import uuid
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from config.db import fetchall, fetchone, execute, get_public_pool
 from middleware.auth import require_role, get_tenant_db
@@ -290,3 +294,225 @@ async def list_orders(
     total_row = await fetchone(db,
         f"SELECT COUNT(*) AS total FROM skus_reorder_orders ro {where}", params)
     return {"data": rows, "total": total_row["total"], "page": page, "limit": limit}
+
+
+# ── Bulk Export / Upload ───────────────────────────────────────────────────────
+
+_BULK_STATUS_MAP = {
+    "ordered":          "order_placed",
+    "order placed":     "order_placed",
+    "pending":          "pending_delivery",
+    "pending delivery": "pending_delivery",
+    "delivered":        "delivered",
+    "cancelled":        "cancelled",
+    "canceled":         "cancelled",
+    "ignored":          None,   # None = skip / do nothing
+}
+
+_PRIMARY_FILL = PatternFill(fill_type="solid", fgColor="1A3C5E")
+_WHITE_FONT   = Font(bold=True, color="FFFFFF")
+_CENTER       = Alignment(horizontal="center", vertical="center")
+
+
+def _build_reorder_excel(rows: list[dict], lead_time: int) -> bytes:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Smart Reorder"
+
+    headers = [
+        ("SKU Code", 16), ("SKU Name", 32), ("Brand", 16),
+        ("Stock", 10), ("DRR/day", 10), ("WOI (wks)", 10),
+        ("Sugg. Qty", 12), ("Current Status", 20),
+        ("Action (Ordered/Pending/Ignored)", 32),
+    ]
+    ws.append([h[0] for h in headers])
+    for i, (label, width) in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=i)
+        cell.font = _WHITE_FONT
+        cell.fill = _PRIMARY_FILL
+        cell.alignment = _CENTER
+        ws.column_dimensions[cell.column_letter].width = width
+    ws.row_dimensions[1].height = 20
+
+    for r in rows:
+        status = r.get("order_status") or r.get("reorder_status") or "reorder_suggested"
+        ws.append([
+            r.get("sku_code"),
+            r.get("sku_name"),
+            r.get("brand") or "",
+            round(float(r.get("effective_stock") or 0), 0),
+            round(float(r.get("drr_recommended") or 0), 2),
+            round(float(r.get("woi") or 0), 1),
+            r.get("suggested_order_qty") or 0,
+            status,
+            "",   # Action column — user fills this in
+        ])
+
+    # Add a data-validation note in the header comment
+    ws["I1"].comment = None  # no openpyxl comment needed — label is self-explanatory
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:I{ws.max_row}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+# GET /reorder/export
+@router.get("/export")
+async def reorder_export(
+    branch_id: str = "", godown_id: str = "",
+    user: dict = Depends(require_role("tenant_admin", "tenant_user")),
+    db=Depends(get_tenant_db),
+):
+    """Download the current reorder list as Excel for bulk status update."""
+    pub = await get_public_pool()
+    tenant_row = await fetchone(pub,
+        "SELECT lead_time_days FROM tenants WHERE id = %s", (user["tenantId"],))
+    lead_time = int((tenant_row or {}).get("lead_time_days") or 15)
+
+    bg_cond, bg_params = _branch_godown_cond(branch_id, godown_id)
+
+    b1_rows = await fetchall(db,
+        f"""{_REORDER_SELECT}
+            {_REORDER_FROM}
+            WHERE {bg_cond} AND s.is_active = TRUE
+              AND EXISTS (
+                SELECT 1 FROM sales sal WHERE sal.sku_id = s.id
+                  AND sal.sale_date >= NOW() - INTERVAL '7 days'
+                  {'AND sal.branch_id = %s' if branch_id else ''}
+              )
+            ORDER BY fc.woi ASC NULLS LAST""",
+        bg_params + ([branch_id] if branch_id else [])
+    )
+    b1_ids = {str(r["sku_id"]) for r in b1_rows}
+
+    b2_rows = await fetchall(db,
+        f"""{_REORDER_SELECT}
+            {_REORDER_FROM}
+            WHERE {bg_cond} AND s.is_active = TRUE
+              AND s.id NOT IN ({','.join(['%s'] * len(b1_ids)) if b1_ids else 'NULL'})
+              AND (fc.woi_status IN ('red','amber') OR fc.current_stock <= 0)
+            ORDER BY fc.woi ASC NULLS LAST""",
+        bg_params + list(b1_ids)
+    )
+
+    def _enrich(rows):
+        out = []
+        for r in rows:
+            r = dict(r)
+            r["suggested_order_qty"] = _suggested_qty(
+                r.get("drr_recommended"), lead_time, r.get("effective_stock"))
+            if r.get("order_status") in ("order_placed", "pending_delivery"):
+                r["reorder_status"] = r["order_status"]
+            elif float(r.get("effective_stock") or 0) == 0:
+                r["reorder_status"] = "out_of_stock"
+            else:
+                r["reorder_status"] = "reorder_suggested"
+            out.append(r)
+        return out
+
+    all_rows = _enrich(b1_rows) + _enrich(b2_rows)
+    excel_bytes = _build_reorder_excel(all_rows, lead_time)
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=smart_reorder.xlsx"},
+    )
+
+
+# POST /reorder/bulk-upload
+@router.post("/bulk-upload")
+async def reorder_bulk_upload(
+    file: UploadFile = File(...),
+    branch_id: str = "",
+    user: dict = Depends(require_role("tenant_admin", "tenant_user")),
+    db=Depends(get_tenant_db),
+):
+    """Accept the filled-in reorder Excel; create/update orders based on the Action column."""
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Only .xlsx / .xls files are accepted")
+
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse the uploaded file")
+
+    ws = wb.active
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+
+    # Expected columns: SKU Code(0), SKU Name(1), Brand(2), Stock(3),
+    #                   DRR(4), WOI(5), Sugg Qty(6), Current Status(7), Action(8)
+
+    pub = await get_public_pool()
+    tenant_row = await fetchone(pub,
+        "SELECT lead_time_days FROM tenants WHERE id = %s", (user["tenantId"],))
+    lead_time = int((tenant_row or {}).get("lead_time_days") or 15)
+    delivery_dt = str(_expected_delivery(lead_time))
+
+    success, skipped, errors = 0, 0, []
+
+    for row_num, row in enumerate(rows, start=2):
+        if not row or all(v is None for v in row):
+            continue
+
+        sku_code = str(row[0]).strip() if row[0] else ""
+        action_raw = str(row[8]).strip().lower() if len(row) > 8 and row[8] else ""
+
+        if not sku_code:
+            continue
+        if not action_raw or action_raw in ("", "none", "-", "—"):
+            skipped += 1
+            continue
+
+        new_status = _BULK_STATUS_MAP.get(action_raw)
+        if new_status is False or (new_status is None and action_raw not in _BULK_STATUS_MAP):
+            errors.append(f"Row {row_num}: unknown action '{row[8]}'")
+            continue
+
+        if new_status is None:  # "ignored" — skip
+            skipped += 1
+            continue
+
+        # Lookup SKU
+        sku_row = await fetchone(db,
+            "SELECT id FROM skus WHERE sku_code = %s AND is_active = TRUE", (sku_code,))
+        if not sku_row:
+            errors.append(f"Row {row_num}: SKU '{sku_code}' not found")
+            continue
+
+        sku_id = str(sku_row["id"])
+
+        # Check for existing open order
+        existing = await fetchone(db,
+            """SELECT id FROM skus_reorder_orders
+               WHERE sku_id = %s AND status NOT IN ('delivered','cancelled')
+               ORDER BY created_at DESC LIMIT 1""",
+            (sku_id,)
+        )
+
+        if existing:
+            await execute(db,
+                "UPDATE skus_reorder_orders SET status = %s, updated_at = NOW() WHERE id = %s",
+                (new_status, str(existing["id"]))
+            )
+        else:
+            # Create a new order with suggested_order_qty = 1 as minimum placeholder
+            sugg_qty = int(row[6]) if len(row) > 6 and row[6] else 1
+            await execute(db,
+                """INSERT INTO skus_reorder_orders
+                       (sku_id, branch_id, ordered_qty, placed_by,
+                        use_system_lead_time, expected_delivery_dt, status, created_at, updated_at)
+                   VALUES (%s, %s, %s, %s, TRUE, %s, %s, NOW(), NOW())""",
+                (sku_id, branch_id or None, max(1, sugg_qty),
+                 user["userId"], delivery_dt, new_status)
+            )
+        success += 1
+
+    return {
+        "message": f"Bulk update complete: {success} updated, {skipped} skipped, {len(errors)} errors",
+        "success": success,
+        "skipped": skipped,
+        "errors": errors,
+    }
