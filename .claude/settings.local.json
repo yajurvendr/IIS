@@ -108,7 +108,8 @@
       "Bash(echo \"exit:$?\")",
       "Bash(find '/Users/admin/Downloads/Personal/Inventory V2' -maxdepth 3 \\\\\\(-name *.md -o -name *.docx \\\\\\) ! -path */.venv/* ! -path */venv/* ! -path */node_modules/*)",
       "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" -c \"import docx; print\\(''python-docx ok''\\)\")",
-      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" generate_docx.py)"
+      "Bash(\"/Users/admin/Downloads/Personal/Inventory V2/api/venv/bin/python\" generate_docx.py)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''/Users/admin/Downloads/Personal/Inventory V2/api/routers/reports.py''\\).read\\(\\)\\); print\\(''✓ syntax OK''\\)\")"
     ],
     "additionalDirectories": [
       "/Users/admin/Downloads/Personal/Inventory demo/IIS"

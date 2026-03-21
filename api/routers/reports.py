@@ -250,32 +250,67 @@ async def _get_outstanding_method(user: dict) -> str:
     return (row or {}).get("outstanding_method") or "direct_upload"
 
 
-async def _outstanding_direct(db, ageing_bucket: str, search: str, page: int, limit: int):
-    """Query outstanding from outstanding_ledger (direct_upload method)."""
-    offset = (page - 1) * limit
-    bucket_having = ""
-    if ageing_bucket == "0-30":    bucket_having = "AND MAX(NOW()::date - ol.transaction_date) BETWEEN 0 AND 30"
-    elif ageing_bucket == "31-60": bucket_having = "AND MAX(NOW()::date - ol.transaction_date) BETWEEN 31 AND 60"
-    elif ageing_bucket == "61-90": bucket_having = "AND MAX(NOW()::date - ol.transaction_date) BETWEEN 61 AND 90"
-    elif ageing_bucket == "90+":   bucket_having = "AND MAX(NOW()::date - ol.transaction_date) > 90"
+_AGEING_BUCKET_LABEL = """
+    CASE
+        WHEN (NOW()::date - {date_col}) BETWEEN 0  AND 30 THEN '0-30'
+        WHEN (NOW()::date - {date_col}) BETWEEN 31 AND 60 THEN '31-60'
+        WHEN (NOW()::date - {date_col}) BETWEEN 61 AND 90 THEN '61-90'
+        ELSE '90+'
+    END
+"""
 
-    customer_where, params = "", []
+
+def _bucket_where(ageing_bucket: str, date_expr: str) -> str:
+    """Return a WHERE fragment (starting with AND) for invoice-level bucket filtering."""
+    if ageing_bucket == "0-30":
+        return f"AND ({date_expr}) BETWEEN 0 AND 30"
+    if ageing_bucket == "31-60":
+        return f"AND ({date_expr}) BETWEEN 31 AND 60"
+    if ageing_bucket == "61-90":
+        return f"AND ({date_expr}) BETWEEN 61 AND 90"
+    if ageing_bucket == "90+":
+        return f"AND ({date_expr}) > 90"
+    return ""
+
+
+async def _outstanding_direct(db, ageing_bucket: str, search: str, page: int, limit: int):
+    """Invoice-wise outstanding from outstanding_ledger (direct_upload method).
+
+    Each invoice in outstanding_ledger is one row. The amount column already
+    represents the net outstanding amount for that invoice (as exported from Busy).
+    """
+    offset = (page - 1) * limit
+    age_expr = "NOW()::date - ol.transaction_date"
+    bucket_filter = _bucket_where(ageing_bucket, age_expr)
+
+    search_where, params = "", []
     if search:
-        customer_where = "AND (c.customer_name ILIKE %s OR c.phone ILIKE %s)"
+        search_where = "AND (c.customer_name ILIKE %s OR c.phone ILIKE %s)"
         params += [f"%{search}%"] * 2
 
     rows = await fetchall(db,
-        f"""SELECT c.id, c.customer_name AS name, c.phone, c.customer_code,
-                   SUM(CASE WHEN ol.transaction_type='invoice' THEN ol.amount ELSE -ol.amount END) AS total_outstanding,
-                   COUNT(CASE WHEN ol.transaction_type='invoice' THEN 1 END) AS invoice_count,
-                   MAX(NOW()::date - ol.transaction_date) AS max_overdue_days
-            FROM customers c JOIN outstanding_ledger ol ON ol.customer_id = c.id
-            WHERE 1=1 {customer_where}
-            GROUP BY c.id, c.customer_name, c.phone, c.customer_code
-            HAVING SUM(CASE WHEN ol.transaction_type='invoice' THEN ol.amount ELSE -ol.amount END) > 0
-            {bucket_having}
-            ORDER BY total_outstanding DESC LIMIT %s OFFSET %s""",
+        f"""SELECT
+               c.id AS customer_id, c.customer_name AS name, c.phone, c.customer_code,
+               ol.id AS invoice_id,
+               ol.reference_no AS invoice_ref,
+               ol.transaction_date AS invoice_date,
+               ol.amount AS outstanding_amount,
+               ({age_expr}) AS age_days,
+               {_AGEING_BUCKET_LABEL.format(date_col='ol.transaction_date')} AS ageing_bucket
+            FROM outstanding_ledger ol
+            JOIN customers c ON c.id = ol.customer_id
+            WHERE ol.transaction_type = 'invoice' AND ol.amount > 0
+            {search_where} {bucket_filter}
+            ORDER BY age_days DESC, ol.amount DESC
+            LIMIT %s OFFSET %s""",
         params + [limit, offset]
+    )
+    count_row = await fetchone(db,
+        f"""SELECT COUNT(*) AS total
+            FROM outstanding_ledger ol JOIN customers c ON c.id = ol.customer_id
+            WHERE ol.transaction_type = 'invoice' AND ol.amount > 0
+            {search_where} {bucket_filter}""",
+        params
     )
     total_amount_row = await fetchone(db,
         """SELECT COALESCE(SUM(CASE WHEN transaction_type='invoice' THEN amount ELSE -amount END), 0) AS total_amount
@@ -289,41 +324,49 @@ async def _outstanding_direct(db, ageing_bucket: str, search: str, page: int, li
              COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) > 90 THEN amount ELSE 0 END),0) AS bucket_90plus
            FROM outstanding_ledger WHERE transaction_type='invoice'"""
     )
-    return rows, float(total_amount_row["total_amount"] or 0), {k: float(v or 0) for k, v in ageing_row.items()}
+    return (rows, int(count_row["total"] or 0),
+            float(total_amount_row["total_amount"] or 0),
+            {k: float(v or 0) for k, v in ageing_row.items()})
 
 
 async def _outstanding_computed(db, ageing_bucket: str, search: str, page: int, limit: int):
-    """Query outstanding from sales_invoices - payment_receipts (computed method)."""
-    offset = (page - 1) * limit
+    """Invoice-wise outstanding from sales_invoices (computed method).
 
-    customer_where, params = "", []
+    Each sales_invoice is one row. Outstanding amount = gross invoice amount
+    (payments are not attributable per-invoice since payment_receipts is customer-level).
+    """
+    offset = (page - 1) * limit
+    age_expr = "NOW()::date - si.invoice_date"
+    bucket_filter = _bucket_where(ageing_bucket, age_expr)
+
+    search_where, params = "", []
     if search:
-        customer_where = "AND (c.customer_name ILIKE %s OR c.phone ILIKE %s)"
+        search_where = "AND (c.customer_name ILIKE %s OR c.phone ILIKE %s)"
         params += [f"%{search}%"] * 2
 
-    bucket_having = ""
-    if ageing_bucket == "0-30":    bucket_having = "AND MAX(NOW()::date - si.invoice_date) BETWEEN 0 AND 30"
-    elif ageing_bucket == "31-60": bucket_having = "AND MAX(NOW()::date - si.invoice_date) BETWEEN 31 AND 60"
-    elif ageing_bucket == "61-90": bucket_having = "AND MAX(NOW()::date - si.invoice_date) BETWEEN 61 AND 90"
-    elif ageing_bucket == "90+":   bucket_having = "AND MAX(NOW()::date - si.invoice_date) > 90"
-
     rows = await fetchall(db,
-        f"""SELECT c.id, c.customer_name AS name, c.phone, c.customer_code,
-                   COALESCE(SUM(si.amount), 0) - COALESCE(pr_totals.paid, 0) AS total_outstanding,
-                   COUNT(si.id) AS invoice_count,
-                   MAX(NOW()::date - si.invoice_date) AS max_overdue_days
-            FROM customers c
-            JOIN sales_invoices si ON si.customer_id = c.id
-            LEFT JOIN (
-                SELECT customer_id, COALESCE(SUM(amount), 0) AS paid
-                FROM payment_receipts GROUP BY customer_id
-            ) pr_totals ON pr_totals.customer_id = c.id
-            WHERE 1=1 {customer_where}
-            GROUP BY c.id, c.customer_name, c.phone, c.customer_code, pr_totals.paid
-            HAVING COALESCE(SUM(si.amount), 0) - COALESCE(pr_totals.paid, 0) > 0
-            {bucket_having}
-            ORDER BY total_outstanding DESC LIMIT %s OFFSET %s""",
+        f"""SELECT
+               c.id AS customer_id, c.customer_name AS name, c.phone, c.customer_code,
+               si.id AS invoice_id,
+               si.invoice_no AS invoice_ref,
+               si.invoice_date,
+               si.due_date,
+               si.amount AS outstanding_amount,
+               ({age_expr}) AS age_days,
+               {_AGEING_BUCKET_LABEL.format(date_col='si.invoice_date')} AS ageing_bucket
+            FROM sales_invoices si
+            JOIN customers c ON c.id = si.customer_id
+            WHERE si.amount > 0
+            {search_where} {bucket_filter}
+            ORDER BY age_days DESC, si.amount DESC
+            LIMIT %s OFFSET %s""",
         params + [limit, offset]
+    )
+    count_row = await fetchone(db,
+        f"""SELECT COUNT(*) AS total
+            FROM sales_invoices si JOIN customers c ON c.id = si.customer_id
+            WHERE si.amount > 0 {search_where} {bucket_filter}""",
+        params
     )
     total_row = await fetchone(db,
         """SELECT COALESCE(SUM(si.amount),0) - COALESCE(SUM(pr.amount),0) AS total_amount
@@ -338,7 +381,9 @@ async def _outstanding_computed(db, ageing_bucket: str, search: str, page: int, 
              COALESCE(SUM(CASE WHEN (NOW()::date - invoice_date) > 90              THEN amount ELSE 0 END),0) AS bucket_90plus
            FROM sales_invoices"""
     )
-    return rows, float(total_row["total_amount"] or 0), {k: float(v or 0) for k, v in ageing_row.items()}
+    return (rows, int(count_row["total"] or 0),
+            float(total_row["total_amount"] or 0),
+            {k: float(v or 0) for k, v in ageing_row.items()})
 
 
 # GET /reports/outstanding
@@ -350,16 +395,16 @@ async def outstanding(
 ):
     method = await _get_outstanding_method(user)
     if method == "computed":
-        rows, total_amount, ageing = await _outstanding_computed(db, ageing_bucket, search, page, limit)
+        rows, total, total_amount, ageing = await _outstanding_computed(db, ageing_bucket, search, page, limit)
     else:
-        rows, total_amount, ageing = await _outstanding_direct(db, ageing_bucket, search, page, limit)
+        rows, total, total_amount, ageing = await _outstanding_direct(db, ageing_bucket, search, page, limit)
     return {
         "data": rows,
+        "total": total,
         "total_amount": total_amount,
         "ageing": ageing,
         "method": method,
         "page": page, "limit": limit,
-        "total": len(rows),
     }
 
 
@@ -370,29 +415,11 @@ async def outstanding_export_pdf(
     db=Depends(get_tenant_db),
 ):
     method = await _get_outstanding_method(user)
-    if method == "computed":
-        rows, _, ageing = await _outstanding_computed(db, "", "", 1, 10000)
-    else:
-        rows = await fetchall(db,
-            """SELECT c.customer_name AS name, c.phone, c.customer_code,
-                      SUM(CASE WHEN ol.transaction_type='invoice' THEN ol.amount ELSE -ol.amount END) AS total_outstanding,
-                      COUNT(CASE WHEN ol.transaction_type='invoice' THEN 1 END) AS invoice_count,
-                      MAX(NOW()::date - ol.transaction_date) AS max_overdue_days
-               FROM customers c JOIN outstanding_ledger ol ON ol.customer_id = c.id
-               GROUP BY c.id, c.customer_name, c.phone, c.customer_code
-               HAVING SUM(CASE WHEN ol.transaction_type='invoice' THEN ol.amount ELSE -ol.amount END) > 0
-               ORDER BY total_outstanding DESC"""
-        )
-        ageing_row = await fetchone(db,
-            """SELECT
-                 COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) BETWEEN 0 AND 30 THEN amount ELSE 0 END),0) AS bucket_0_30,
-                 COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) BETWEEN 31 AND 60 THEN amount ELSE 0 END),0) AS bucket_31_60,
-                 COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) BETWEEN 61 AND 90 THEN amount ELSE 0 END),0) AS bucket_61_90,
-                 COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) BETWEEN 91 AND 180 THEN amount ELSE 0 END),0) AS bucket_91_180,
-                 COALESCE(SUM(CASE WHEN transaction_type='invoice' AND (NOW()::date - transaction_date) > 180 THEN amount ELSE 0 END),0) AS bucket_180plus
-               FROM outstanding_ledger WHERE transaction_type='invoice'"""
-        )
-        ageing = {k: float(v or 0) for k, v in ageing_row.items()}
+    rows, _, __, ageing = (
+        await _outstanding_computed(db, "", "", 1, 10000)
+        if method == "computed"
+        else await _outstanding_direct(db, "", "", 1, 10000)
+    )
     buf = build_outstanding_pdf(rows, ageing)
     return StreamingResponse(
         io.BytesIO(buf),
@@ -687,7 +714,7 @@ async def volume_profit_export(
 # GET /reports/sales-forecast
 @router.get("/sales-forecast")
 async def sales_forecast(
-    category: str = "", brand: str = "", woi_status: str = "",
+    category: str = "", brand: str = "", woi_status: str = "", sku_search: str = "",
     branch_id: str = "", page: int = 1, limit: int = 50,
     user: dict = Depends(require_role("tenant_admin", "tenant_user")),
     db=Depends(get_tenant_db),
@@ -698,14 +725,18 @@ async def sales_forecast(
     if category:   where += " AND s.category = %s"; params.append(category)
     if brand:      where += " AND s.brand = %s";    params.append(brand)
     if woi_status: where += " AND fc.woi_status = %s"; params.append(woi_status)
+    if sku_search:
+        where += " AND (s.sku_code ILIKE %s OR s.sku_name ILIKE %s)"
+        params += [f"%{sku_search}%"] * 2
 
     rows = await fetchall(db,
         f"""SELECT s.id, s.sku_code, s.sku_name, s.brand, s.category, s.unit,
-                   fc.current_stock, fc.drr_recommended, fc.woi, fc.woi_status,
+                   fc.current_stock, fc.drr_recommended, fc.drr_4w, fc.drr_13w, fc.drr_seasonal,
+                   fc.woi, fc.woi_status,
                    fc.msl_suggested, fc.suggested_order_qty,
-                   GREATEST(0, fc.current_stock - fc.drr_recommended * 7 * 4)  AS proj_4w,
-                   GREATEST(0, fc.current_stock - fc.drr_recommended * 7 * 8)  AS proj_8w,
-                   GREATEST(0, fc.current_stock - fc.drr_recommended * 7 * 12) AS proj_12w,
+                   GREATEST(0, fc.current_stock - fc.drr_recommended * 28)  AS proj_4w,
+                   GREATEST(0, fc.current_stock - fc.drr_recommended * 56)  AS proj_8w,
+                   GREATEST(0, fc.current_stock - fc.drr_recommended * 84)  AS proj_12w,
                    CASE WHEN fc.drr_recommended > 0
                         THEN (NOW()::date + (fc.current_stock / NULLIF(fc.drr_recommended, 0))::int)
                         ELSE NULL END AS stockout_date
@@ -765,32 +796,11 @@ async def sales_forecast_chart_data(
     db=Depends(get_tenant_db),
 ):
     """Aggregated data for the sales forecast visualization charts."""
+    import asyncio
     fc_clause, fc_bp = _fc_branch(branch_id)
     s_clause, s_bp = _sl_branch("sales", branch_id)
 
-    # 1. WOI distribution
-    woi_dist = await fetchall(db,
-        f"SELECT woi_status, COUNT(*) AS cnt FROM forecasting_cache fc WHERE 1=1 {fc_clause} GROUP BY woi_status",
-        fc_bp
-    )
-
-    # 2. Aggregate stock projection (sum across all SKUs)
-    proj = await fetchone(db,
-        f"""SELECT
-              COALESCE(SUM(fc.current_stock), 0) AS stock_now,
-              COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 28)), 0) AS stock_4w,
-              COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 56)), 0) AS stock_8w,
-              COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 84)), 0) AS stock_12w
-           FROM forecasting_cache fc WHERE 1=1 {fc_clause}""",
-        fc_bp
-    )
-
-    # 3. Forecast vs Actual: forecasted demand (DRR × 28) vs actual past-4W sales, by category
-    cat_comparison = await fetchall(db,
-        f"""SELECT s.category,
-                   COALESCE(SUM(fc.drr_recommended * 28), 0) AS forecasted_demand,
-                   COALESCE(SUM(sl.actual_4w), 0)            AS actual_sales
-            FROM skus s
+    _fva_join = f"""FROM skus s
             JOIN forecasting_cache fc ON fc.sku_id = s.id
             LEFT JOIN (
                 SELECT sku_id, SUM(quantity) AS actual_4w
@@ -798,55 +808,168 @@ async def sales_forecast_chart_data(
                 WHERE sale_date >= NOW() - INTERVAL '28 days' {s_clause}
                 GROUP BY sku_id
             ) sl ON sl.sku_id = s.id
-            WHERE 1=1 {fc_clause} AND s.category IS NOT NULL AND s.category != ''
-            GROUP BY s.category
-            ORDER BY forecasted_demand DESC
-            LIMIT 10""",
-        s_bp + fc_bp
-    )
+            WHERE 1=1 {fc_clause}"""
 
-    # 4. Top 5 SKUs closest to stock-out
-    stockout_soon = await fetchall(db,
-        f"""SELECT s.sku_code, s.sku_name, fc.current_stock, fc.drr_recommended,
-                   fc.woi_status,
-                   (fc.current_stock / NULLIF(fc.drr_recommended, 0))::int AS days_to_stockout
-            FROM forecasting_cache fc JOIN skus s ON s.id = fc.sku_id
-            WHERE 1=1 {fc_clause} AND fc.drr_recommended > 0 AND fc.current_stock > 0
-            ORDER BY (fc.current_stock / fc.drr_recommended) ASC
-            LIMIT 5""",
-        fc_bp
+    (woi_dist, proj, kpi_row, cat_comparison, brand_comparison,
+     red_skus, amber_skus, stockout_7d, stockout_soon) = await asyncio.gather(
+        # 1. WOI distribution
+        fetchall(db,
+            f"SELECT woi_status, COUNT(*) AS cnt FROM forecasting_cache fc WHERE 1=1 {fc_clause} GROUP BY woi_status",
+            fc_bp),
+        # 2. Stock projection (per-SKU DRR applied before summing)
+        fetchone(db,
+            f"""SELECT
+                  COALESCE(SUM(fc.current_stock), 0) AS stock_now,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended *  7)), 0) AS stock_w1,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 14)), 0) AS stock_w2,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 21)), 0) AS stock_w3,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 28)), 0) AS stock_w4,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 35)), 0) AS stock_w5,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 42)), 0) AS stock_w6,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 49)), 0) AS stock_w7,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 56)), 0) AS stock_w8,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 63)), 0) AS stock_w9,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 70)), 0) AS stock_w10,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 77)), 0) AS stock_w11,
+                  COALESCE(SUM(GREATEST(0, fc.current_stock - fc.drr_recommended * 84)), 0) AS stock_w12
+               FROM forecasting_cache fc WHERE 1=1 {fc_clause}""",
+            fc_bp),
+        # 3. KPI counts
+        fetchone(db,
+            f"""SELECT COUNT(*) AS total_skus,
+                  COUNT(CASE WHEN fc.woi_status='red' THEN 1 END) AS red_count,
+                  COUNT(CASE WHEN fc.woi_status='amber' THEN 1 END) AS amber_count,
+                  COUNT(CASE WHEN fc.drr_recommended > 0
+                             AND (fc.current_stock / NULLIF(fc.drr_recommended, 0)) <= 7 THEN 1 END) AS stockout_7d_count
+               FROM forecasting_cache fc WHERE 1=1 {fc_clause}""",
+            fc_bp),
+        # 4. Forecast vs Actual by category
+        fetchall(db,
+            f"""SELECT s.category,
+                       COALESCE(SUM(fc.drr_recommended * 28), 0) AS forecasted_demand,
+                       COALESCE(SUM(sl.actual_4w), 0)            AS actual_sales
+                {_fva_join} AND s.category IS NOT NULL AND s.category != ''
+                GROUP BY s.category ORDER BY forecasted_demand DESC LIMIT 10""",
+            s_bp + fc_bp),
+        # 5. Forecast vs Actual by brand
+        fetchall(db,
+            f"""SELECT s.brand,
+                       COALESCE(SUM(fc.drr_recommended * 28), 0) AS forecasted_demand,
+                       COALESCE(SUM(sl.actual_4w), 0)            AS actual_sales
+                {_fva_join} AND s.brand IS NOT NULL AND s.brand != ''
+                GROUP BY s.brand ORDER BY forecasted_demand DESC LIMIT 10""",
+            s_bp + fc_bp),
+        # 6. Red WOI SKUs for panel
+        fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, fc.woi, fc.current_stock,
+                       fc.drr_recommended, fc.suggested_order_qty
+                FROM forecasting_cache fc JOIN skus s ON s.id = fc.sku_id
+                WHERE 1=1 {fc_clause} AND fc.woi_status='red'
+                ORDER BY fc.woi ASC LIMIT 20""",
+            fc_bp),
+        # 7. Amber WOI SKUs for panel
+        fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, fc.woi, fc.current_stock, fc.drr_recommended
+                FROM forecasting_cache fc JOIN skus s ON s.id = fc.sku_id
+                WHERE 1=1 {fc_clause} AND fc.woi_status='amber'
+                ORDER BY fc.woi ASC LIMIT 20""",
+            fc_bp),
+        # 8. Stockout ≤7 days for panel
+        fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, fc.current_stock, fc.drr_recommended,
+                       fc.suggested_order_qty,
+                       (fc.current_stock / NULLIF(fc.drr_recommended, 0))::int AS days_to_stockout
+                FROM forecasting_cache fc JOIN skus s ON s.id = fc.sku_id
+                WHERE 1=1 {fc_clause} AND fc.drr_recommended > 0
+                  AND (fc.current_stock / fc.drr_recommended) <= 7
+                ORDER BY (fc.current_stock / fc.drr_recommended) ASC""",
+            fc_bp),
+        # 9. Nearest stockouts widget (top 10)
+        fetchall(db,
+            f"""SELECT s.sku_code, s.sku_name, fc.current_stock, fc.drr_recommended,
+                       fc.woi_status, fc.suggested_order_qty,
+                       (fc.current_stock / NULLIF(fc.drr_recommended, 0))::int AS days_to_stockout
+                FROM forecasting_cache fc JOIN skus s ON s.id = fc.sku_id
+                WHERE 1=1 {fc_clause} AND fc.drr_recommended > 0 AND fc.current_stock > 0
+                ORDER BY (fc.current_stock / fc.drr_recommended) ASC
+                LIMIT 10""",
+            fc_bp),
     )
 
     woi_map = {r["woi_status"]: int(r["cnt"] or 0) for r in woi_dist}
+    total_skus = int(kpi_row["total_skus"] or 0)
+    red_count  = int(kpi_row["red_count"] or 0)
+    amber_count = int(kpi_row["amber_count"] or 0)
+
     return {
+        "kpi": {
+            "total_skus":       total_skus,
+            "red_count":        red_count,
+            "red_pct":          round(red_count / total_skus * 100) if total_skus else 0,
+            "amber_count":      amber_count,
+            "amber_pct":        round(amber_count / total_skus * 100) if total_skus else 0,
+            "stockout_7d_count": int(kpi_row["stockout_7d_count"] or 0),
+        },
         "woi_distribution": {
             "red":   woi_map.get("red", 0),
             "amber": woi_map.get("amber", 0),
             "green": woi_map.get("green", 0),
         },
         "stock_projection": {
-            "now":  float(proj["stock_now"] or 0),
-            "w4":   float(proj["stock_4w"] or 0),
-            "w8":   float(proj["stock_8w"] or 0),
-            "w12":  float(proj["stock_12w"] or 0),
+            "now": float(proj["stock_now"] or 0),
+            "w1":  float(proj["stock_w1"]  or 0),
+            "w2":  float(proj["stock_w2"]  or 0),
+            "w3":  float(proj["stock_w3"]  or 0),
+            "w4":  float(proj["stock_w4"]  or 0),
+            "w5":  float(proj["stock_w5"]  or 0),
+            "w6":  float(proj["stock_w6"]  or 0),
+            "w7":  float(proj["stock_w7"]  or 0),
+            "w8":  float(proj["stock_w8"]  or 0),
+            "w9":  float(proj["stock_w9"]  or 0),
+            "w10": float(proj["stock_w10"] or 0),
+            "w11": float(proj["stock_w11"] or 0),
+            "w12": float(proj["stock_w12"] or 0),
         },
         "category_comparison": [
-            {
-                "category":          r["category"],
-                "forecasted_demand": float(r["forecasted_demand"] or 0),
-                "actual_sales":      float(r["actual_sales"] or 0),
-            }
+            {"category": r["category"],
+             "forecasted_demand": float(r["forecasted_demand"] or 0),
+             "actual_sales":      float(r["actual_sales"] or 0)}
             for r in cat_comparison
         ],
+        "brand_comparison": [
+            {"brand": r["brand"],
+             "forecasted_demand": float(r["forecasted_demand"] or 0),
+             "actual_sales":      float(r["actual_sales"] or 0)}
+            for r in brand_comparison
+        ],
+        "red_skus": [
+            {"sku_code": r["sku_code"], "sku_name": r["sku_name"],
+             "woi": float(r["woi"] or 0), "current_stock": float(r["current_stock"] or 0),
+             "drr_recommended": float(r["drr_recommended"] or 0),
+             "suggested_order_qty": int(r["suggested_order_qty"] or 0)}
+            for r in red_skus
+        ],
+        "amber_skus": [
+            {"sku_code": r["sku_code"], "sku_name": r["sku_name"],
+             "woi": float(r["woi"] or 0), "current_stock": float(r["current_stock"] or 0),
+             "drr_recommended": float(r["drr_recommended"] or 0)}
+            for r in amber_skus
+        ],
+        "stockout_7d": [
+            {"sku_code": r["sku_code"], "sku_name": r["sku_name"],
+             "current_stock": float(r["current_stock"] or 0),
+             "drr_recommended": float(r["drr_recommended"] or 0),
+             "suggested_order_qty": int(r["suggested_order_qty"] or 0),
+             "days_to_stockout": int(r["days_to_stockout"] or 0)}
+            for r in stockout_7d
+        ],
         "stockout_soon": [
-            {
-                "sku_code":        r["sku_code"],
-                "sku_name":        r["sku_name"],
-                "current_stock":   float(r["current_stock"] or 0),
-                "drr_recommended": float(r["drr_recommended"] or 0),
-                "woi_status":      r["woi_status"],
-                "days_to_stockout": int(r["days_to_stockout"] or 0),
-            }
+            {"sku_code": r["sku_code"], "sku_name": r["sku_name"],
+             "current_stock": float(r["current_stock"] or 0),
+             "drr_recommended": float(r["drr_recommended"] or 0),
+             "woi_status": r["woi_status"],
+             "suggested_order_qty": int(r["suggested_order_qty"] or 0),
+             "days_to_stockout": int(r["days_to_stockout"] or 0)}
             for r in stockout_soon
         ],
     }

@@ -20,12 +20,40 @@ function waPhone(phone) {
   return digits;
 }
 
+// Age badge colour
+function ageBadgeCls(days) {
+  const n = parseInt(days) || 0;
+  if (n > 90) return 'badge badge-red';
+  if (n > 60) return 'badge badge-amber';
+  if (n > 30) return 'badge badge-blue';
+  return 'badge badge-green';
+}
+
+// Bucket badge
+const BUCKET_COLORS = {
+  '0-30':  { bg: '#F0FFF4', color: '#276749', border: '#68D391' },
+  '31-60': { bg: '#EBF8FF', color: '#2B6CB0', border: '#63B3ED' },
+  '61-90': { bg: '#FFFBEB', color: '#92400E', border: '#F6AD55' },
+  '90+':   { bg: '#FFF5F5', color: '#C53030', border: '#FC8181' },
+};
+
+function BucketBadge({ bucket }) {
+  const style = BUCKET_COLORS[bucket] || { bg: '#F7FAFC', color: '#4A5568', border: '#CBD5E0' };
+  return (
+    <span style={{
+      display: 'inline-block', padding: '2px 9px', borderRadius: 10,
+      fontSize: 11, fontWeight: 700, border: `1px solid ${style.border}`,
+      background: style.bg, color: style.color,
+    }}>{bucket}</span>
+  );
+}
+
 const FOLLOWUP_STATUS_META = {
-  followup_pending:    { label: 'Pending',    cls: 'badge badge-amber' },
-  customer_promised:   { label: 'Promised',   cls: 'badge badge-blue'  },
-  reminder_snoozed:    { label: 'Snoozed',    cls: 'badge badge-green' },
-  escalation_required: { label: 'Escalated',  cls: 'badge badge-red'   },
-  auto_closed:         { label: 'Closed',     cls: 'badge badge-green' },
+  followup_pending:    { label: 'Pending',   cls: 'badge badge-amber' },
+  customer_promised:   { label: 'Promised',  cls: 'badge badge-blue'  },
+  reminder_snoozed:    { label: 'Snoozed',   cls: 'badge badge-green' },
+  escalation_required: { label: 'Escalated', cls: 'badge badge-red'   },
+  auto_closed:         { label: 'Closed',    cls: 'badge badge-green' },
 };
 
 function FollowupBadge({ status }) {
@@ -35,24 +63,15 @@ function FollowupBadge({ status }) {
 
 // ── Inline Follow-up Panel ────────────────────────────────────────────────────
 
-function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
-  // invoice_ref = customerCode (customer-level follow-up)
-  const invoiceRef = customerCode;
-
+function FollowupPanel({ invoiceRef, customerId, customerName, onClose }) {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-
-  // Add comment / promised payment form
   const [comment, setComment] = useState('');
   const [promisedDate, setPromisedDate] = useState('');
   const [saving, setSaving] = useState(false);
-
-  // Snooze form
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozeDate, setSnoozeDate] = useState('');
   const [snoozeSaving, setSnoozeSaving] = useState(false);
-
-  // Escalate form
   const [escalateOpen, setEscalateOpen] = useState(false);
   const [escalateComment, setEscalateComment] = useState('');
   const [escalateSaving, setEscalateSaving] = useState(false);
@@ -85,22 +104,16 @@ function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
     if (!snoozeDate) return;
     setSnoozeSaving(true);
     try {
-      await api.post('/outstanding/followups/snooze', {
-        invoice_ref: invoiceRef, snoozed_until: snoozeDate,
-      });
-      setSnoozeOpen(false); setSnoozeDate('');
-      loadHistory();
+      await api.post('/outstanding/followups/snooze', { invoice_ref: invoiceRef, snoozed_until: snoozeDate });
+      setSnoozeOpen(false); setSnoozeDate(''); loadHistory();
     } finally { setSnoozeSaving(false); }
   }
 
   async function handleEscalate() {
     setEscalateSaving(true);
     try {
-      await api.post('/outstanding/followups/escalate', {
-        invoice_ref: invoiceRef, comment: escalateComment || null,
-      });
-      setEscalateOpen(false); setEscalateComment('');
-      loadHistory();
+      await api.post('/outstanding/followups/escalate', { invoice_ref: invoiceRef, comment: escalateComment || null });
+      setEscalateOpen(false); setEscalateComment(''); loadHistory();
     } finally { setEscalateSaving(false); }
   }
 
@@ -108,16 +121,13 @@ function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
 
   return (
     <div style={{
-      border: '1px solid var(--color-border)',
-      borderRadius: 8,
-      background: 'var(--color-surface)',
-      padding: 16,
-      marginTop: 4,
+      border: '1px solid var(--color-border)', borderRadius: 8,
+      background: 'var(--color-surface)', padding: 16, marginTop: 4,
     }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>
           Follow-up: {customerName}
+          {invoiceRef && <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 400 }}>· {invoiceRef}</span>}
           {latestStatus && <span style={{ marginLeft: 10 }}><FollowupBadge status={latestStatus} /></span>}
         </div>
         <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={onClose}>✕ Close</button>
@@ -127,85 +137,56 @@ function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
         {/* Left: add new followup */}
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Add Follow-up</div>
-
-          <textarea
-            className="form-input"
-            placeholder="Comment / notes…"
-            rows={3}
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            style={{ width: '100%', fontSize: 13, marginBottom: 8, resize: 'vertical' }}
-          />
-
+          <textarea className="form-input" placeholder="Comment / notes…" rows={3}
+            value={comment} onChange={e => setComment(e.target.value)}
+            style={{ width: '100%', fontSize: 13, marginBottom: 8, resize: 'vertical' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-              Promised date:
-            </label>
-            <input type="date" className="form-input"
-              value={promisedDate} onChange={e => setPromisedDate(e.target.value)}
-              style={{ fontSize: 12, padding: '4px 8px' }} />
+            <label style={{ fontSize: 12, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>Promised date:</label>
+            <input type="date" className="form-input" value={promisedDate}
+              onChange={e => setPromisedDate(e.target.value)} style={{ fontSize: 12, padding: '4px 8px' }} />
           </div>
-
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 14px' }}
               onClick={handleAddFollowup} disabled={saving || (!comment && !promisedDate)}>
               {saving ? 'Saving…' : promisedDate ? 'Save Promised Date' : 'Add Comment'}
             </button>
-
-            {/* Snooze */}
             {!snoozeOpen && !escalateOpen && (
               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}
-                onClick={() => setSnoozeOpen(true)}>
-                Snooze
-              </button>
+                onClick={() => setSnoozeOpen(true)}>Snooze</button>
             )}
-
-            {/* Escalate */}
             {!escalateOpen && !snoozeOpen && (
               <button className="btn btn-ghost"
                 style={{ fontSize: 12, padding: '5px 12px', color: 'var(--color-danger, #e53e3e)' }}
-                onClick={() => setEscalateOpen(true)}>
-                Escalate
-              </button>
+                onClick={() => setEscalateOpen(true)}>Escalate</button>
             )}
           </div>
 
-          {/* Snooze sub-form */}
           {snoozeOpen && (
-            <div style={{ marginTop: 10, padding: 10, background: '#FFFBEB',
-              border: '1px solid #FCD34D', borderRadius: 6 }}>
+            <div style={{ marginTop: 10, padding: 10, background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 6 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Snooze until:</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input type="date" className="form-input" value={snoozeDate}
-                  onChange={e => setSnoozeDate(e.target.value)}
-                  style={{ fontSize: 12, padding: '4px 8px' }} />
+                  onChange={e => setSnoozeDate(e.target.value)} style={{ fontSize: 12, padding: '4px 8px' }} />
                 <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 12px' }}
                   onClick={handleSnooze} disabled={snoozeSaving || !snoozeDate}>
-                  {snoozeSaving ? '…' : 'Snooze'}
-                </button>
+                  {snoozeSaving ? '…' : 'Snooze'}</button>
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
                   onClick={() => setSnoozeOpen(false)}>Cancel</button>
               </div>
             </div>
           )}
 
-          {/* Escalate sub-form */}
           {escalateOpen && (
-            <div style={{ marginTop: 10, padding: 10, background: '#FFF5F5',
-              border: '1px solid #FC8181', borderRadius: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#C53030' }}>
-                Escalate to Admin:
-              </div>
-              <textarea className="form-input" placeholder="Reason for escalation…"
-                rows={2} value={escalateComment} onChange={e => setEscalateComment(e.target.value)}
+            <div style={{ marginTop: 10, padding: 10, background: '#FFF5F5', border: '1px solid #FC8181', borderRadius: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#C53030' }}>Escalate to Admin:</div>
+              <textarea className="form-input" placeholder="Reason for escalation…" rows={2}
+                value={escalateComment} onChange={e => setEscalateComment(e.target.value)}
                 style={{ width: '100%', fontSize: 12, marginBottom: 8, resize: 'vertical' }} />
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary"
-                  style={{ fontSize: 12, padding: '4px 12px',
-                    background: '#E53E3E', border: 'none', color: '#fff' }}
+                  style={{ fontSize: 12, padding: '4px 12px', background: '#E53E3E', border: 'none', color: '#fff' }}
                   onClick={handleEscalate} disabled={escalateSaving}>
-                  {escalateSaving ? '…' : 'Confirm Escalate'}
-                </button>
+                  {escalateSaving ? '…' : 'Confirm Escalate'}</button>
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
                   onClick={() => setEscalateOpen(false)}>Cancel</button>
               </div>
@@ -219,9 +200,7 @@ function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
           {loadingHistory ? (
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Loading…</div>
           ) : history.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-              No follow-up history yet.
-            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No follow-up history yet.</div>
           ) : (
             <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {history.map(h => (
@@ -235,14 +214,10 @@ function FollowupPanel({ customerId, customerCode, customerName, onClose }) {
                   </div>
                   {h.comment && <div style={{ marginBottom: 3 }}>{h.comment}</div>}
                   {h.promised_payment_dt && (
-                    <div style={{ color: 'var(--color-primary)', fontSize: 11 }}>
-                      Promised by: {formatDate(h.promised_payment_dt)}
-                    </div>
+                    <div style={{ color: 'var(--color-primary)', fontSize: 11 }}>Promised by: {formatDate(h.promised_payment_dt)}</div>
                   )}
                   {h.snoozed_until && (
-                    <div style={{ color: '#B7791F', fontSize: 11 }}>
-                      Snoozed until: {formatDate(h.snoozed_until)}
-                    </div>
+                    <div style={{ color: '#B7791F', fontSize: 11 }}>Snoozed until: {formatDate(h.snoozed_until)}</div>
                   )}
                 </div>
               ))}
@@ -268,11 +243,10 @@ export default function OutstandingPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // WhatsApp template
   const [templates, setTemplates] = useState([]);
   const [selectedTpl, setSelectedTpl] = useState('');
 
-  // Expanded follow-up panels: Set of customer_code keys
+  // Expanded follow-up: key = "invoiceRef" of the expanded row
   const [expandedFollowup, setExpandedFollowup] = useState(null);
 
   function load(p = 1) {
@@ -323,17 +297,14 @@ export default function OutstandingPage() {
     const tpl = templates.find(t => t.id === selectedTpl);
     const messageBody = tpl
       ? tpl.message_body
-      : 'Dear {customer_name}, your outstanding amount of {outstanding_amount} is pending. Kindly settle at the earliest. — {shop_name}';
-
-    const dueDate = row.max_overdue_days
-      ? new Date(Date.now() - parseInt(row.max_overdue_days) * 86400000)
-          .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-      : '—';
+      : 'Dear {customer_name}, your outstanding invoice {invoice_ref} for {outstanding_amount} (aged {age_days} days) is pending. Kindly settle at the earliest. — {shop_name}';
 
     const message = fillTemplate(messageBody, {
       customer_name:      row.name || '',
-      outstanding_amount: formatINR(row.total_outstanding),
-      due_date:           dueDate,
+      invoice_ref:        row.invoice_ref || '',
+      outstanding_amount: formatINR(row.outstanding_amount),
+      age_days:           row.age_days || 0,
+      invoice_date:       formatDate(row.invoice_date) || '',
       shop_name:          tenant?.name || tenant?.business_name || 'IIS',
     });
 
@@ -349,19 +320,19 @@ export default function OutstandingPage() {
 
   return (
     <>
-      <Topbar
-        title="Customer Outstanding"
-      />
+      <Topbar title="Customer Outstanding" />
 
       {/* Total + Ageing Buckets */}
       <div className="card" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Total Outstanding</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-red)' }}>{formatINR(totalAmount, true)}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>Invoice-wise aging</div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           {buckets.map(b => (
-            <button key={b.key} onClick={() => setFilters(f => ({ ...f, ageing_bucket: f.ageing_bucket === b.filter ? '' : b.filter }))}
+            <button key={b.key}
+              onClick={() => setFilters(f => ({ ...f, ageing_bucket: f.ageing_bucket === b.filter ? '' : b.filter }))}
               style={{
                 textAlign: 'center', padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
                 border: `2px solid ${filters.ageing_bucket === b.filter ? 'var(--color-primary)' : 'var(--color-border)'}`,
@@ -402,79 +373,92 @@ export default function OutstandingPage() {
       </div>
 
       <DataTable
-          loading={loading}
-          columns={[
-            { key: 'name', label: 'Customer Name' },
-            { key: 'customer_code', label: 'Code', width: 100 },
-            { key: 'phone', label: 'Phone', width: 130 },
-            { key: 'invoice_count', label: 'Invoices', width: 80 },
-            {
-              key: 'total_outstanding', label: 'Outstanding',
-              render: v => <strong style={{ color: 'var(--color-red)' }}>{formatINR(v, true)}</strong>
-            },
-            {
-              key: 'max_overdue_days', label: 'Overdue',
-              render: v => {
-                const days = parseInt(v) || 0;
-                const cls = days > 90 ? 'badge-red' : days > 60 ? 'badge-amber' : 'badge-green';
-                return <span className={`badge ${cls}`}>{days} days</span>;
-              }
-            },
-            {
-              key: '_whatsapp', label: 'WhatsApp', width: 110,
-              render: (_, row) => {
-                const phone = waPhone(row.phone);
-                return (
-                  <button
-                    onClick={() => sendWhatsApp(row)}
-                    disabled={!phone}
-                    title={phone ? `Send to ${row.phone}` : 'No phone number'}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                      border: 'none', cursor: phone ? 'pointer' : 'not-allowed',
-                      background: phone ? '#25D366' : 'var(--color-border)',
-                      color: phone ? '#fff' : 'var(--color-text-muted)',
-                    }}
-                  >
-                    <span style={{ fontSize: 14 }}>💬</span> Send
-                  </button>
-                );
-              }
-            },
-            {
-              key: '_followup', label: 'Follow Up', width: 120,
-              render: (_, row) => {
-                const key = row.customer_code || row.id;
-                const active = expandedFollowup === key;
-                return (
-                  <button
-                    className={active ? 'btn btn-primary' : 'btn btn-ghost'}
-                    style={{ fontSize: 12, padding: '4px 12px' }}
-                    onClick={() => setExpandedFollowup(active ? null : key)}
-                  >
-                    {active ? '▲ Close' : '▼ Follow Up'}
-                  </button>
-                );
-              }
-            },
-          ]}
-          data={data}
-          emptyText="No outstanding invoices"
-          expandedRow={(row) => {
-            const key = row.customer_code || row.id;
-            if (expandedFollowup !== key) return null;
-            return (
-              <FollowupPanel
-                customerId={row.customer_id || row.id}
-                customerCode={key}
-                customerName={row.name}
-                onClose={() => setExpandedFollowup(null)}
-              />
-            );
-          }}
-          footer={<Pagination page={page} total={total} limit={30} onChange={setPage} />}
-        />
+        loading={loading}
+        columns={[
+          { key: 'name',     label: 'Customer Name' },
+          { key: 'customer_code', label: 'Code', width: 90 },
+          { key: 'phone',    label: 'Phone', width: 130 },
+          {
+            key: 'invoice_ref', label: 'Invoice Ref', width: 130,
+            render: v => v
+              ? <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span>
+              : <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+          },
+          {
+            key: 'invoice_date', label: 'Invoice Date', width: 115,
+            render: v => formatDate(v) || '—'
+          },
+          {
+            key: 'due_date', label: 'Due Date', width: 100,
+            render: v => v ? formatDate(v) : <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+          },
+          {
+            key: 'outstanding_amount', label: 'Outstanding', width: 120,
+            render: v => <strong style={{ color: 'var(--color-red)' }}>{formatINR(v, true)}</strong>
+          },
+          {
+            key: 'age_days', label: 'Age', width: 80,
+            render: v => <span className={ageBadgeCls(v)}>{v} d</span>
+          },
+          {
+            key: 'ageing_bucket', label: 'Bucket', width: 80,
+            render: v => v ? <BucketBadge bucket={v} /> : '—'
+          },
+          {
+            key: '_whatsapp', label: 'WhatsApp', width: 100,
+            render: (_, row) => {
+              const phone = waPhone(row.phone);
+              return (
+                <button
+                  onClick={() => sendWhatsApp(row)}
+                  disabled={!phone}
+                  title={phone ? `Send to ${row.phone}` : 'No phone number'}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: 'none', cursor: phone ? 'pointer' : 'not-allowed',
+                    background: phone ? '#25D366' : 'var(--color-border)',
+                    color: phone ? '#fff' : 'var(--color-text-muted)',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>💬</span> Send
+                </button>
+              );
+            }
+          },
+          {
+            key: '_followup', label: 'Follow Up', width: 110,
+            render: (_, row) => {
+              const key = row.invoice_ref || String(row.invoice_id);
+              const active = expandedFollowup === key;
+              return (
+                <button
+                  className={active ? 'btn btn-primary' : 'btn btn-ghost'}
+                  style={{ fontSize: 12, padding: '4px 12px' }}
+                  onClick={() => setExpandedFollowup(active ? null : key)}
+                >
+                  {active ? '▲ Close' : '▼ Follow Up'}
+                </button>
+              );
+            }
+          },
+        ]}
+        data={data}
+        emptyText="No outstanding invoices"
+        expandedRow={(row) => {
+          const key = row.invoice_ref || String(row.invoice_id);
+          if (expandedFollowup !== key) return null;
+          return (
+            <FollowupPanel
+              invoiceRef={key}
+              customerId={row.customer_id}
+              customerName={row.name}
+              onClose={() => setExpandedFollowup(null)}
+            />
+          );
+        }}
+        footer={<Pagination page={page} total={total} limit={30} onChange={setPage} />}
+      />
     </>
   );
 }
